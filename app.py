@@ -184,9 +184,20 @@ def database_ready():
     return bool(url and key)
 
 
-def _supabase_request(method, path, payload=None, query=None):
-    url, key = get_supabase_config()
+def get_supabase_secret_key():
+    """Chiave privilegiata opzionale, usata solo lato server per le funzioni Admin."""
+    try:
+        return str(st.secrets.get("SUPABASE_SECRET_KEY", ""))
+    except Exception:
+        return ""
+
+
+def _supabase_request(method, path, payload=None, query=None, privileged=False):
+    url, public_key = get_supabase_config()
+    key = get_supabase_secret_key() if privileged else public_key
     if not url or not key:
+        if privileged:
+            raise RuntimeError("Funzioni Admin non configurate: aggiungi SUPABASE_SECRET_KEY nei Secrets.")
         raise RuntimeError("Database non configurato: aggiungi SUPABASE_URL e SUPABASE_KEY nei Secrets.")
 
     endpoint = f"{url}/rest/v1/{path}"
@@ -203,6 +214,8 @@ def _supabase_request(method, path, payload=None, query=None):
     req.add_header("Content-Type", "application/json")
     req.add_header("Accept", "application/json")
     if method == "POST":
+        req.add_header("Prefer", "return=representation")
+    elif method == "DELETE":
         req.add_header("Prefer", "return=representation")
 
     try:
@@ -260,6 +273,51 @@ def fetch_assessments(limit=5000):
     )
 
 
+def delete_assessment(assessment_id):
+    """Elimina una valutazione usando esclusivamente la secret key server-side."""
+    return _supabase_request(
+        "DELETE",
+        "risk_assessments",
+        query={"id": f"eq.{int(assessment_id)}"},
+        privileged=True,
+    )
+
+
+def get_admin_password():
+    try:
+        return str(st.secrets.get("ADMIN_PASSWORD", ""))
+    except Exception:
+        return ""
+
+
+def admin_ready():
+    return bool(get_admin_password() and get_supabase_secret_key())
+
+
+def assessment_code(row):
+    """Codice leggibile derivato da cantiere, data e ID senza modificare lo schema DB."""
+    site = str(row.get("Cantiere", "HSE")).upper().replace(" ", "-")
+    site = ''.join(ch for ch in site if ch.isalnum() or ch == '-')[:18] or "HSE"
+    dt = row.get("Data")
+    try:
+        stamp = pd.Timestamp(dt).strftime("%Y%m%d")
+    except Exception:
+        stamp = datetime.now().strftime("%Y%m%d")
+    try:
+        ident = int(row.get("ID"))
+    except Exception:
+        ident = 0
+    return f"{site}-{stamp}-{ident:04d}"
+
+
+def enrich_assessments_dataframe(df):
+    if df.empty:
+        return df
+    out = df.copy()
+    out["Codice"] = out.apply(lambda row: assessment_code(row), axis=1)
+    return out
+
+
 def assessments_dataframe(rows):
     records = []
     for row in rows:
@@ -300,7 +358,7 @@ def render_db_notice():
     )
 
 
-def render_hero(title, subtitle, eyebrow="HSE RISK PLATFORM V2"):
+def render_hero(title, subtitle, eyebrow="HSE RISK PLATFORM V2.1"):
     st.markdown(
         f"""
         <div class="hse-hero">
@@ -318,13 +376,15 @@ def render_home():
         "Safety intelligence, in one place.",
         "Calcola il Risk Index, archivia le valutazioni, monitora i trend e prepara estrazioni filtrate da un'unica piattaforma.",
     )
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.markdown('<div class="hse-card"><h3>🧮 Risk Assessment</h3><p>La logica di calcolo esistente resta invariata, con report operativo, scorecard, action plan e toolkit.</p><span class="hse-badge">Calcolo + salvataggio</span></div>', unsafe_allow_html=True)
     with c2:
         st.markdown('<div class="hse-card"><h3>📊 Dashboard & Storico</h3><p>Visualizza Risk Index, trend per cantiere, volumi di valutazione e indicatori HSE nel tempo.</p><span class="hse-badge">Dati centralizzati</span></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown('<div class="hse-card"><h3>📥 Estrazione dati</h3><p>Filtra per periodo, cantiere, fase e livello di rischio prima di esportare i risultati.</p><span class="hse-badge">Excel / CSV</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="hse-card"><h3>📥 Estrazione dati</h3><p>Combina filtri operativi, consulta l’anteprima e genera export Excel o CSV pronti per reporting.</p><span class="hse-badge">Filtri avanzati</span></div>', unsafe_allow_html=True)
+    with c4:
+        st.markdown('<div class="hse-card"><h3>🔐 Gestione archivio</h3><p>Area Admin separata per manutenzione e cancellazione controllata delle valutazioni.</p><span class="hse-badge">Accesso protetto</span></div>', unsafe_allow_html=True)
 
     st.markdown("### Stato piattaforma")
     if database_ready():
@@ -341,17 +401,101 @@ def render_home():
         render_db_notice()
 
 
+def _load_archive_df():
+    rows = fetch_assessments()
+    df = assessments_dataframe(rows)
+    return enrich_assessments_dataframe(df), rows
+
+
+def _payload_for_id(rows, assessment_id):
+    for row in rows:
+        if str(row.get("id")) == str(assessment_id):
+            return row.get("payload") or {}
+    return {}
+
+
+def _filter_by_period(df, period):
+    if df.empty or not isinstance(period, (tuple, list)) or len(period) != 2:
+        return df
+    start, end = period
+    return df[(df["Data"].dt.date >= start) & (df["Data"].dt.date <= end)]
+
+
+def render_assessment_detail(payload, archive_row=None):
+    data = payload.get("data") or {}
+    technical = payload.get("technical_data") or {}
+    drivers = pd.DataFrame(payload.get("drivers") or [])
+    actions = pd.DataFrame(payload.get("actions") or [])
+    action_plan = pd.DataFrame(payload.get("action_plan") or [])
+    scorecard = pd.DataFrame(payload.get("scorecard") or [])
+
+    if archive_row is not None:
+        st.markdown(f"### {archive_row.get('Codice', '')} · {archive_row.get('Cantiere', '')}")
+        a, b, c, d = st.columns(4)
+        a.metric("Risk Index", f"{float(archive_row.get('Risk Index', 0)):.1f} / 100")
+        b.metric("Livello", str(archive_row.get("Livello", "")))
+        c.metric("Fase", str(archive_row.get("Fase", "")))
+        d.metric("Compilato da", str(archive_row.get("Compilato da", "")) or "—")
+
+    t1, t2, t3, t4 = st.tabs(["📋 Input", "📈 Driver", "✅ Azioni", "🧭 Output"] )
+    with t1:
+        input_rows = [
+            ("Ispezioni", data.get("inspections", 0)),
+            ("NC", data.get("num_nc", 0)),
+            ("Stop Work", data.get("stopworks", 0)),
+            ("Criticità aperte", data.get("crit_open", 0)),
+            ("Criticità chiuse nei tempi", data.get("crit_ontime", 0)),
+            ("Criticità chiuse in ritardo", data.get("crit_late", 0)),
+            ("Appaltatori", data.get("app", 0)),
+            ("Subappaltatori", data.get("sub", 0)),
+            ("HSE imprese", data.get("company_hse", 0)),
+            ("Interferenza", data.get("interference_level", 0)),
+            ("Sensibilizzazioni", data.get("awareness_count", 0)),
+            ("Attività", ", ".join(data.get("activities", []))),
+            ("Tipi sensibilizzazione", ", ".join(data.get("awareness_types", []))),
+            ("Detection", technical.get("nc_detection_ratio", 0)),
+        ]
+        st.dataframe(pd.DataFrame(input_rows, columns=["Indicatore", "Valore"]), use_container_width=True, hide_index=True)
+        nc_items = pd.DataFrame(data.get("nc_items") or [])
+        if not nc_items.empty:
+            st.markdown("#### Non conformità")
+            st.dataframe(nc_items, use_container_width=True, hide_index=True)
+    with t2:
+        if not drivers.empty:
+            st.altair_chart(create_driver_chart(drivers[["Driver", "Valore"]]), use_container_width=True)
+            st.dataframe(drivers, use_container_width=True, hide_index=True)
+        else:
+            st.info("Driver non disponibili per questa valutazione.")
+    with t3:
+        if not action_plan.empty:
+            st.markdown("#### Action Plan")
+            st.dataframe(action_plan, use_container_width=True, hide_index=True)
+        if not actions.empty:
+            st.markdown("#### Azioni suggerite")
+            st.dataframe(actions, use_container_width=True, hide_index=True)
+        if not scorecard.empty:
+            st.markdown("#### HSE Scorecard")
+            st.dataframe(scorecard, use_container_width=True, hide_index=True)
+    with t4:
+        if payload.get("summary"):
+            st.markdown("#### Executive Summary")
+            st.markdown(payload.get("summary"))
+        if payload.get("root_cause"):
+            with st.expander("Root Cause Analysis", expanded=False):
+                st.markdown(payload.get("root_cause"))
+
+
 def render_dashboard():
     render_hero(
         "Dashboard & Storico",
-        "Una vista manageriale sull'andamento del rischio, con trend temporali e confronto tra cantieri.",
-        eyebrow="ANALYTICS"
+        "Analizza il portfolio HSE, confronta i cantieri e apri il dettaglio di ogni valutazione archiviata.",
+        eyebrow="ANALYTICS · V2.1"
     )
     if not database_ready():
         render_db_notice()
         return
     try:
-        df = assessments_dataframe(fetch_assessments())
+        df, rows = _load_archive_df()
     except Exception as exc:
         st.error(str(exc))
         return
@@ -359,50 +503,108 @@ def render_dashboard():
         st.info("Nessuna valutazione ancora archiviata.")
         return
 
-    site_options = ["Tutti"] + sorted(df["Cantiere"].dropna().astype(str).unique().tolist())
-    selected_site = st.selectbox("Cantiere", site_options, key="dash_site")
-    view = df if selected_site == "Tutti" else df[df["Cantiere"] == selected_site]
+    min_date = df["Data"].min().date()
+    max_date = df["Data"].max().date()
+    f1, f2, f3 = st.columns([1.25, 1, 1])
+    with f1:
+        period = st.date_input("Periodo dashboard", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="dash_period")
+    with f2:
+        site_options = ["Tutti"] + sorted(df["Cantiere"].dropna().astype(str).unique().tolist())
+        selected_site = st.selectbox("Cantiere", site_options, key="dash_site")
+    with f3:
+        level_options = ["Tutti", "Basso", "Medio basso", "Medio", "Alto", "Critico"]
+        selected_level = st.selectbox("Livello", level_options, key="dash_level")
+
+    view = _filter_by_period(df, period)
+    if selected_site != "Tutti":
+        view = view[view["Cantiere"] == selected_site]
+    if selected_level != "Tutti":
+        view = view[view["Livello"] == selected_level]
+
+    if view.empty:
+        st.warning("Nessuna valutazione corrisponde ai filtri selezionati.")
+        return
 
     latest = view.sort_values("Data").groupby("Cantiere", as_index=False).tail(1)
-    k1, k2, k3, k4 = st.columns(4)
+    latest_high = int(latest["Livello"].isin(["Alto", "Critico"]).sum())
+    k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Valutazioni", len(view))
     k2.metric("Cantieri", int(view["Cantiere"].nunique()))
     k3.metric("Risk medio", f"{view['Risk Index'].mean():.1f}")
-    k4.metric("Alto / Critico", int(view["Livello"].isin(["Alto", "Critico"]).sum()))
+    k4.metric("Risk massimo", f"{view['Risk Index'].max():.1f}")
+    k5.metric("Siti Alto/Critico", latest_high)
 
-    st.markdown("### Trend Risk Index")
-    trend = (
-        alt.Chart(view.dropna(subset=["Data", "Risk Index"]))
-        .mark_line(point=True, strokeWidth=3)
+    left, right = st.columns([1.7, 1])
+    with left:
+        st.markdown("### Andamento Risk Index")
+        trend = (
+            alt.Chart(view.dropna(subset=["Data", "Risk Index"]))
+            .mark_line(point=True, strokeWidth=3)
+            .encode(
+                x=alt.X("Data:T", title="Data"),
+                y=alt.Y("Risk Index:Q", scale=alt.Scale(domain=[0, 100]), title="Risk Index"),
+                color=alt.Color("Cantiere:N", legend=alt.Legend(title="Cantiere")),
+                tooltip=["Codice:N", "Cantiere:N", alt.Tooltip("Data:T"), alt.Tooltip("Risk Index:Q", format=".1f"), "Livello:N"]
+            ).properties(height=380)
+        )
+        st.altair_chart(trend, use_container_width=True)
+    with right:
+        st.markdown("### Distribuzione livelli")
+        level_counts = view.groupby("Livello", as_index=False).size().rename(columns={"size": "Valutazioni"})
+        level_chart = (
+            alt.Chart(level_counts)
+            .mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5)
+            .encode(
+                x=alt.X("Livello:N", sort=["Basso", "Medio basso", "Medio", "Alto", "Critico"], title=None),
+                y=alt.Y("Valutazioni:Q", title="Valutazioni"),
+                tooltip=["Livello:N", "Valutazioni:Q"]
+            ).properties(height=380)
+        )
+        st.altair_chart(level_chart, use_container_width=True)
+
+    st.markdown("### Indicatori operativi nel tempo")
+    indicator = st.selectbox("Indicatore", ["NC", "Ispezioni", "Interferenza", "Criticità aperte", "Sensibilizzazioni", "Indice detection"], key="dash_indicator")
+    indicator_chart = (
+        alt.Chart(view.dropna(subset=["Data"]))
+        .mark_line(point=True, strokeWidth=2.4)
         .encode(
             x=alt.X("Data:T", title="Data"),
-            y=alt.Y("Risk Index:Q", scale=alt.Scale(domain=[0, 100]), title="Risk Index"),
+            y=alt.Y(f"{indicator}:Q", title=indicator),
             color=alt.Color("Cantiere:N", legend=alt.Legend(title="Cantiere")),
-            tooltip=["Cantiere:N", alt.Tooltip("Data:T"), alt.Tooltip("Risk Index:Q", format=".1f"), "Livello:N"]
-        )
-        .properties(height=390)
+            tooltip=["Codice:N", "Cantiere:N", alt.Tooltip("Data:T"), alt.Tooltip(f"{indicator}:Q", format=".2f")]
+        ).properties(height=300)
     )
-    st.altair_chart(trend, use_container_width=True)
+    st.altair_chart(indicator_chart, use_container_width=True)
 
     st.markdown("### Ultima valutazione per cantiere")
     st.dataframe(
-        latest[["Cantiere", "Data", "Risk Index", "Livello", "NC", "Ispezioni", "Interferenza", "Compilato da"]].sort_values("Risk Index", ascending=False),
-        use_container_width=True,
-        hide_index=True,
+        latest[["Codice", "Cantiere", "Data", "Risk Index", "Livello", "NC", "Ispezioni", "Interferenza", "Compilato da"]].sort_values("Risk Index", ascending=False),
+        use_container_width=True, hide_index=True,
     )
+
+    st.markdown("### Storico valutazioni")
+    history = view.sort_values("Data", ascending=False)
+    st.dataframe(history[["Codice", "Cantiere", "Data", "Fase", "Risk Index", "Livello", "Compilato da"]], use_container_width=True, hide_index=True)
+
+    options = {f"{row['Codice']} · {row['Cantiere']} · Risk {float(row['Risk Index']):.1f}": row for _, row in history.iterrows()}
+    selected_label = st.selectbox("Apri dettaglio valutazione", ["— Seleziona —"] + list(options.keys()), key="history_detail")
+    if selected_label != "— Seleziona —":
+        row = options[selected_label]
+        payload = _payload_for_id(rows, row["ID"])
+        render_assessment_detail(payload, row.to_dict())
 
 
 def render_extraction():
     render_hero(
         "Estrazione dati",
-        "Applica i filtri prima dell'export e genera un dataset coerente con il perimetro che vuoi analizzare.",
-        eyebrow="REPORTING"
+        "Costruisci un perimetro di analisi con filtri combinabili e scarica un dataset pronto per reporting e analisi.",
+        eyebrow="REPORTING · V2.1"
     )
     if not database_ready():
         render_db_notice()
         return
     try:
-        df = assessments_dataframe(fetch_assessments())
+        df, _rows = _load_archive_df()
     except Exception as exc:
         st.error(str(exc))
         return
@@ -414,37 +616,64 @@ def render_extraction():
     max_date = df["Data"].max().date()
     f1, f2, f3 = st.columns(3)
     with f1:
-        period = st.date_input("Periodo", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+        period = st.date_input("Periodo", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="extract_period")
     with f2:
         sites = st.multiselect("Cantiere", sorted(df["Cantiere"].dropna().astype(str).unique()), placeholder="Tutti i cantieri")
     with f3:
         phases = st.multiselect("Fase", sorted(df["Fase"].dropna().astype(str).unique()), placeholder="Tutte le fasi")
 
-    f4, f5 = st.columns([1.3, 1])
+    f4, f5, f6 = st.columns(3)
     with f4:
         levels = st.multiselect("Livello rischio", ["Basso", "Medio basso", "Medio", "Alto", "Critico"], placeholder="Tutti i livelli")
     with f5:
-        risk_range = st.slider("Risk Index", 0, 100, (0, 100))
+        authors = st.multiselect("Compilato da", sorted([x for x in df["Compilato da"].dropna().astype(str).unique() if x.strip()]), placeholder="Tutti")
+    with f6:
+        risk_range = st.slider("Risk Index", 0, 100, (0, 100), key="extract_risk")
 
-    filtered = df.copy()
-    if isinstance(period, (tuple, list)) and len(period) == 2:
-        start, end = period
-        filtered = filtered[(filtered["Data"].dt.date >= start) & (filtered["Data"].dt.date <= end)]
+    f7, f8 = st.columns(2)
+    with f7:
+        activity_text = st.text_input("Attività contiene", placeholder="es. scavi, elettrici")
+    with f8:
+        min_nc = st.number_input("NC minime", min_value=0, value=0, step=1)
+
+    filtered = _filter_by_period(df.copy(), period)
     if sites:
         filtered = filtered[filtered["Cantiere"].isin(sites)]
     if phases:
         filtered = filtered[filtered["Fase"].isin(phases)]
     if levels:
         filtered = filtered[filtered["Livello"].isin(levels)]
+    if authors:
+        filtered = filtered[filtered["Compilato da"].isin(authors)]
     filtered = filtered[filtered["Risk Index"].between(risk_range[0], risk_range[1])]
+    filtered = filtered[pd.to_numeric(filtered["NC"], errors="coerce").fillna(0) >= min_nc]
+    if activity_text.strip():
+        filtered = filtered[filtered["Attività"].fillna("").str.contains(activity_text.strip(), case=False, regex=False)]
 
-    st.metric("Valutazioni incluse nell'estrazione", len(filtered))
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Valutazioni incluse", len(filtered))
+    k2.metric("Cantieri inclusi", int(filtered["Cantiere"].nunique()) if not filtered.empty else 0)
+    k3.metric("Risk medio", f"{filtered['Risk Index'].mean():.1f}" if not filtered.empty else "—")
+
     st.dataframe(filtered.sort_values("Data", ascending=False), use_container_width=True, hide_index=True)
+    if filtered.empty:
+        st.warning("Nessun record corrisponde ai filtri selezionati.")
+        return
 
-    csv_data = filtered.to_csv(index=False).encode("utf-8-sig")
+    export_df = filtered.copy()
+    export_df["Data"] = export_df["Data"].dt.strftime("%Y-%m-%d %H:%M:%S")
+    csv_data = export_df.to_csv(index=False).encode("utf-8-sig")
     excel_buffer = BytesIO()
     with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        filtered.to_excel(writer, sheet_name="Valutazioni", index=False)
+        export_df.to_excel(writer, sheet_name="Valutazioni", index=False)
+        summary = pd.DataFrame([
+            {"Indicatore": "Valutazioni", "Valore": len(filtered)},
+            {"Indicatore": "Cantieri", "Valore": int(filtered["Cantiere"].nunique())},
+            {"Indicatore": "Risk medio", "Valore": round(float(filtered["Risk Index"].mean()), 2)},
+            {"Indicatore": "Risk massimo", "Valore": round(float(filtered["Risk Index"].max()), 2)},
+            {"Indicatore": "Alto/Critico", "Valore": int(filtered["Livello"].isin(["Alto", "Critico"]).sum())},
+        ])
+        summary.to_excel(writer, sheet_name="Sintesi", index=False)
     excel_buffer.seek(0)
 
     e1, e2 = st.columns(2)
@@ -475,6 +704,78 @@ def render_methodology():
         "per verificare la coerenza delle sensibilizzazioni."
     )
     st.info("Il Risk Index è uno strumento di supporto decisionale e non sostituisce la valutazione dei rischi prevista dalla normativa, il giudizio professionale o le misure di sicurezza applicabili al sito.")
+
+
+def render_admin():
+    render_hero(
+        "Gestione archivio",
+        "Area riservata per la manutenzione dello storico. La cancellazione utilizza una chiave server-side separata dalla chiave pubblica dell'app.",
+        eyebrow="ADMIN · V2.1"
+    )
+    if not database_ready():
+        render_db_notice()
+        return
+    if not admin_ready():
+        st.warning(
+            "Area Admin non ancora attiva. Per abilitarla aggiungi nei Secrets di Streamlit "
+            "`ADMIN_PASSWORD` e `SUPABASE_SECRET_KEY`. La Publishable key resta invariata per gli utenti normali."
+        )
+        st.info("Finché non configuri questi due Secrets, nessun utente può cancellare valutazioni dall'app.")
+        return
+
+    if "admin_authenticated" not in st.session_state:
+        st.session_state.admin_authenticated = False
+
+    if not st.session_state.admin_authenticated:
+        password = st.text_input("Password amministratore", type="password", key="admin_password_input")
+        if st.button("🔐 Accedi all'area Admin", type="primary", use_container_width=True):
+            if password and password == get_admin_password():
+                st.session_state.admin_authenticated = True
+                st.rerun()
+            else:
+                st.error("Password amministratore non corretta.")
+        return
+
+    top1, top2 = st.columns([4, 1])
+    with top1:
+        st.success("Accesso amministratore attivo.")
+    with top2:
+        if st.button("Esci", use_container_width=True):
+            st.session_state.admin_authenticated = False
+            st.rerun()
+
+    try:
+        df, rows = _load_archive_df()
+    except Exception as exc:
+        st.error(str(exc))
+        return
+    if df.empty:
+        st.info("Archivio vuoto.")
+        return
+
+    st.markdown("### Valutazioni archiviate")
+    st.dataframe(df[["Codice", "Cantiere", "Data", "Fase", "Risk Index", "Livello", "Compilato da"]].sort_values("Data", ascending=False), use_container_width=True, hide_index=True)
+
+    labels = {f"{row['Codice']} · {row['Cantiere']} · {row['Data']:%d/%m/%Y %H:%M}": row for _, row in df.sort_values("Data", ascending=False).iterrows()}
+    selected = st.selectbox("Seleziona la valutazione da gestire", list(labels.keys()), key="admin_selected")
+    row = labels[selected]
+    payload = _payload_for_id(rows, row["ID"])
+    with st.expander("Visualizza dettaglio prima dell'eliminazione", expanded=False):
+        render_assessment_detail(payload, row.to_dict())
+
+    st.markdown("### 🗑️ Eliminazione")
+    st.warning("Operazione definitiva: la valutazione verrà rimossa da Supabase e sparirà immediatamente da Dashboard e Storico.")
+    confirm = st.checkbox(f"Confermo di voler eliminare {row['Codice']}", key="admin_confirm_delete")
+    typed = st.text_input("Scrivi ELIMINA per confermare", key="admin_delete_text")
+    if st.button("🗑️ Elimina definitivamente", type="primary", use_container_width=True, disabled=not (confirm and typed.strip().upper() == "ELIMINA")):
+        try:
+            delete_assessment(row["ID"])
+            st.success(f"Valutazione {row['Codice']} eliminata correttamente.")
+            st.session_state.pop("admin_confirm_delete", None)
+            st.session_state.pop("admin_delete_text", None)
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Eliminazione non riuscita: {exc}")
 
 
 # =========================================================
@@ -3078,10 +3379,10 @@ if "advisor_answer" not in st.session_state:
 # =========================================================
 with st.sidebar:
     st.markdown("## ⚡ HSE Risk Platform")
-    st.caption("Versione 2 · Risk intelligence & reporting")
+    st.caption("Versione 2.1 · Risk intelligence & reporting")
     page = st.radio(
         "Navigazione",
-        ["🏠 Home", "🧮 Risk Assessment", "📊 Dashboard & Storico", "📥 Estrazione dati", "ℹ️ Metodologia"],
+        ["🏠 Home", "🧮 Risk Assessment", "📊 Dashboard & Storico", "📥 Estrazione dati", "ℹ️ Metodologia", "🔐 Admin"],
         label_visibility="collapsed",
         key="main_navigation"
     )
@@ -3098,6 +3399,9 @@ elif page == "📥 Estrazione dati":
     st.stop()
 elif page == "ℹ️ Metodologia":
     render_methodology()
+    st.stop()
+elif page == "🔐 Admin":
+    render_admin()
     st.stop()
 
 
