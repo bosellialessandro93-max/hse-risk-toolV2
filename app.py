@@ -1,6 +1,7 @@
 from io import BytesIO
 from datetime import datetime, date
 import json
+import html
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -20,7 +21,7 @@ from docx.shared import Pt, Inches as DocxInches
 # CONFIGURAZIONE STREAMLIT
 # =========================================================
 st.set_page_config(
-    page_title="HSE Risk Platform V2",
+    page_title="HSE Risk Platform · V2.2",
     page_icon="🦺",
     layout="wide"
 )
@@ -28,143 +29,350 @@ st.set_page_config(
 
 
 # =========================================================
-# DESIGN SYSTEM V2
+# DESIGN SYSTEM V2.2 · RESPONSIBLE UX/UI
 # =========================================================
 st.markdown(
     """
     <style>
     :root {
-        --hse-electric: #00B8FF;
-        --hse-blue: #0078D4;
-        --hse-navy: #071B2B;
-        --hse-slate: #123247;
-        --hse-soft: #EAF8FF;
-        --hse-border: #D8E8F3;
+        --hse-electric: #0AA9F4;
+        --hse-electric-strong: #008ED6;
+        --hse-navy: #071A2B;
+        --hse-navy-2: #0D2C40;
+        --hse-ink: #102A3A;
+        --hse-muted: #617786;
+        --hse-bg: #F5F8FB;
+        --hse-surface: #FFFFFF;
+        --hse-soft: #EAF7FD;
+        --hse-border: #DCE6ED;
+        --hse-success: #168A5B;
+        --hse-warning: #B66A05;
+        --hse-danger: #C53B3B;
+    }
+
+    html, body, [class*="css"] {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     .stApp {
-        background:
-            radial-gradient(circle at 88% 4%, rgba(0,184,255,.11), transparent 22rem),
-            linear-gradient(180deg, #F8FCFF 0%, #FFFFFF 42%);
+        background: var(--hse-bg);
+        color: var(--hse-ink);
     }
 
+    .block-container {
+        max-width: 1460px;
+        padding-top: 1.35rem;
+        padding-bottom: 3.5rem;
+    }
+
+    /* Sidebar */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #061A2A 0%, #0C2C43 100%);
+        background: linear-gradient(180deg, #061725 0%, #0A2638 100%);
         border-right: 1px solid rgba(255,255,255,.08);
     }
-    [data-testid="stSidebar"] * { color: #F4FBFF; }
-    [data-testid="stSidebar"] label { color: #EAF8FF !important; }
-    [data-testid="stSidebar"] [data-baseweb="select"] * { color: #0B2233 !important; }
-    [data-testid="stSidebar"] input { color: #0B2233 !important; }
+    [data-testid="stSidebar"] * { color: #EDF7FC; }
+    [data-testid="stSidebar"] label { color: #EAF6FC !important; }
+    [data-testid="stSidebar"] [data-baseweb="select"] * { color: var(--hse-ink) !important; }
+    [data-testid="stSidebar"] input { color: var(--hse-ink) !important; }
+    [data-testid="stSidebar"] div[role="radiogroup"] > label {
+        border-radius: 10px;
+        padding: .48rem .65rem;
+        margin: .12rem 0;
+        transition: background .15s ease;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+        background: rgba(10,169,244,.12);
+    }
 
+    /* Header / hero */
     .hse-hero {
-        padding: 2rem 2.2rem;
-        border-radius: 24px;
-        background: linear-gradient(115deg, #071B2B 0%, #0A3551 58%, #006FAE 100%);
-        box-shadow: 0 18px 50px rgba(7, 45, 70, .18);
-        margin-bottom: 1.25rem;
+        padding: 1.7rem 1.9rem;
+        border-radius: 18px;
+        background: linear-gradient(115deg, #071A2B 0%, #0D3046 70%, #0A5A82 100%);
+        box-shadow: 0 14px 36px rgba(13,44,64,.13);
+        margin-bottom: 1.15rem;
         position: relative;
         overflow: hidden;
+        border: 1px solid rgba(255,255,255,.08);
     }
     .hse-hero:after {
         content: "";
         position: absolute;
-        width: 260px; height: 260px;
+        width: 210px; height: 210px;
         border-radius: 50%;
-        right: -80px; top: -120px;
-        background: rgba(0,184,255,.23);
-        filter: blur(3px);
+        right: -70px; top: -115px;
+        background: rgba(10,169,244,.22);
     }
     .hse-eyebrow {
-        color: #67D9FF;
-        font-weight: 700;
-        letter-spacing: .14em;
-        font-size: .78rem;
+        color: #62D4FF;
+        font-weight: 800;
+        letter-spacing: .13em;
+        font-size: .73rem;
         text-transform: uppercase;
-        margin-bottom: .45rem;
+        margin-bottom: .42rem;
     }
-    .hse-hero h1 { color: white; margin: 0; font-size: 2.25rem; }
-    .hse-hero p { color: #DCEFF8; max-width: 900px; margin: .75rem 0 0; font-size: 1.02rem; }
-
-    .hse-card {
-        background: rgba(255,255,255,.95);
-        border: 1px solid var(--hse-border);
-        border-radius: 18px;
-        padding: 1.25rem 1.35rem;
-        box-shadow: 0 8px 26px rgba(12,62,92,.07);
-        min-height: 150px;
+    .hse-hero h1 {
+        color: white;
+        margin: 0;
+        font-size: clamp(1.75rem, 2.5vw, 2.35rem);
+        letter-spacing: -.025em;
     }
-    .hse-card h3 { margin-top: 0; color: #0B3550; }
-    .hse-card p { color: #526B7B; }
-    .hse-accent { color: var(--hse-electric); font-weight: 800; }
+    .hse-hero p {
+        color: #DCECF5;
+        max-width: 920px;
+        margin: .65rem 0 0;
+        font-size: 1rem;
+        line-height: 1.55;
+    }
 
-    div[data-testid="stMetric"] {
-        background: rgba(255,255,255,.96);
+    /* Reusable cards */
+    .hse-card, .hse-panel {
+        background: var(--hse-surface);
         border: 1px solid var(--hse-border);
         border-radius: 16px;
-        padding: 1rem 1.05rem;
-        box-shadow: 0 8px 24px rgba(9,63,94,.06);
+        padding: 1.15rem 1.25rem;
+        box-shadow: 0 6px 20px rgba(15,51,72,.045);
     }
-    div[data-testid="stMetric"] label { color: #5B7484 !important; }
+    .hse-card { min-height: 145px; }
+    .hse-card h3, .hse-panel h3 { margin-top: 0; color: var(--hse-ink); }
+    .hse-card p, .hse-panel p { color: var(--hse-muted); line-height: 1.5; }
+    .hse-accent { color: var(--hse-electric-strong); font-weight: 800; }
 
+    .hse-kicker {
+        color: var(--hse-muted);
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+    }
+    .hse-section-title {
+        color: var(--hse-ink);
+        font-weight: 850;
+        margin-top: .4rem;
+        letter-spacing: -.015em;
+    }
+    .hse-badge, .hse-chip {
+        display: inline-block;
+        padding: .28rem .68rem;
+        border-radius: 999px;
+        background: #E8F7FE;
+        color: #087BAF;
+        border: 1px solid #BFE8F8;
+        font-weight: 750;
+        font-size: .8rem;
+    }
+    .hse-chip-neutral {
+        background: #F1F5F8;
+        color: #526A79;
+        border-color: #DDE6EC;
+    }
+
+    /* Steps */
+    .hse-stepper {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: .5rem;
+        margin: .85rem 0 1.15rem;
+    }
+    .hse-step {
+        background: #FFFFFF;
+        border: 1px solid var(--hse-border);
+        border-radius: 12px;
+        padding: .72rem .8rem;
+        color: #526B7A;
+        font-size: .83rem;
+        font-weight: 700;
+    }
+    .hse-step span {
+        display:block;
+        color: var(--hse-electric-strong);
+        font-size: .72rem;
+        letter-spacing:.08em;
+        margin-bottom:.18rem;
+    }
+
+    /* Metrics */
+    div[data-testid="stMetric"] {
+        background: #FFFFFF;
+        border: 1px solid var(--hse-border);
+        border-radius: 14px;
+        padding: .9rem 1rem;
+        box-shadow: 0 5px 16px rgba(15,51,72,.04);
+    }
+    div[data-testid="stMetric"] label { color: var(--hse-muted) !important; }
+
+    /* Inputs */
+    div[data-baseweb="input"], div[data-baseweb="select"] > div,
+    div[data-testid="stNumberInput"] > div > div {
+        border-radius: 10px !important;
+    }
+    div[data-testid="stExpander"] {
+        background: #FFFFFF;
+        border: 1px solid var(--hse-border) !important;
+        border-radius: 14px !important;
+        overflow: hidden;
+    }
+
+    /* Buttons */
     .stButton > button,
     .stDownloadButton > button {
-        border-radius: 11px !important;
-        min-height: 44px;
-        font-weight: 700 !important;
-        border: 1px solid #0099D8 !important;
-        transition: all .16s ease-in-out;
-        box-shadow: 0 6px 18px rgba(0,120,212,.13);
+        border-radius: 10px !important;
+        min-height: 43px;
+        font-weight: 750 !important;
+        border: 1px solid #BFD8E6 !important;
+        transition: all .14s ease-in-out;
+        box-shadow: none;
     }
     .stButton > button:hover,
     .stDownloadButton > button:hover {
         transform: translateY(-1px);
-        border-color: #00B8FF !important;
-        box-shadow: 0 9px 24px rgba(0,120,212,.22);
+        border-color: #75CFF2 !important;
+        box-shadow: 0 6px 16px rgba(10,120,175,.10);
     }
     .stButton > button[kind="primary"] {
-        background: linear-gradient(100deg, #0078D4 0%, #00B8FF 100%) !important;
+        background: linear-gradient(100deg, #007EBE 0%, #0AA9F4 100%) !important;
         color: white !important;
         border: none !important;
     }
     .stDownloadButton > button {
         background: #FFFFFF !important;
-        color: #006AA6 !important;
+        color: #087BAF !important;
     }
 
+    /* Tabs */
     div[data-baseweb="tab-list"] {
-        gap: .35rem;
-        background: #F3F9FD;
-        padding: .35rem;
-        border-radius: 14px;
-        border: 1px solid #E1EDF5;
+        gap: .25rem;
+        background: #EDF4F8;
+        padding: .3rem;
+        border-radius: 12px;
+        border: 1px solid #DDE8EE;
     }
     button[data-baseweb="tab"] {
-        border-radius: 10px;
-        padding-left: .85rem !important;
-        padding-right: .85rem !important;
+        border-radius: 9px;
+        padding-left: .8rem !important;
+        padding-right: .8rem !important;
     }
 
-    .hse-section-title {
-        color: #0A3551;
-        font-weight: 800;
-        margin-top: .35rem;
+    /* Risk result */
+    .risk-result {
+        background: #FFFFFF;
+        border: 1px solid var(--hse-border);
+        border-radius: 18px;
+        padding: 1.35rem 1.45rem;
+        box-shadow: 0 8px 24px rgba(15,51,72,.055);
+        margin: .5rem 0 1rem;
     }
-    .hse-badge {
-        display: inline-block;
-        padding: .28rem .7rem;
+    .risk-result-grid {
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        gap: 1.3rem;
+        align-items: center;
+    }
+    .risk-number {
+        font-size: 3.55rem;
+        line-height: 1;
+        font-weight: 900;
+        letter-spacing: -.05em;
+        color: var(--risk-color, #0A3551);
+    }
+    .risk-denom { color: #7A8E9A; font-size: 1rem; font-weight: 650; }
+    .risk-level {
+        display:inline-block;
+        margin-top:.48rem;
+        padding:.3rem .72rem;
+        border-radius:999px;
+        font-size:.78rem;
+        font-weight:850;
+        letter-spacing:.05em;
+        color: var(--risk-color, #0A3551);
+        background: color-mix(in srgb, var(--risk-color, #0A3551) 10%, white);
+        border:1px solid color-mix(in srgb, var(--risk-color, #0A3551) 28%, white);
+    }
+    .risk-bar {
+        height: 10px;
         border-radius: 999px;
-        background: #E6F7FF;
-        color: #0078D4;
-        border: 1px solid #BFEAFF;
-        font-weight: 700;
-        font-size: .82rem;
+        background: linear-gradient(90deg,
+            #24956A 0% 20%,
+            #8AAE37 20% 40%,
+            #D29B27 40% 60%,
+            #D46A39 60% 80%,
+            #C53B3B 80% 100%);
+        margin: .75rem 0 .45rem;
+        position:relative;
+    }
+    .risk-marker {
+        position:absolute;
+        left: var(--risk-position, 0%);
+        top:50%; transform:translate(-50%, -50%);
+        width:18px; height:18px;
+        border-radius:50%;
+        background:#FFFFFF;
+        border:4px solid var(--risk-color, #0A3551);
+        box-shadow:0 2px 7px rgba(0,0,0,.18);
+    }
+
+    .driver-list {
+        margin: .35rem 0 0;
+        padding:0;
+        list-style:none;
+    }
+    .driver-list li {
+        display:flex;
+        justify-content:space-between;
+        gap:1rem;
+        padding:.52rem 0;
+        border-bottom:1px solid #EDF2F5;
+        color:#334F60;
+    }
+    .driver-list li:last-child { border-bottom:none; }
+
+    /* Timeline / attention cards */
+    .attention-item, .timeline-item {
+        background:#FFFFFF;
+        border:1px solid var(--hse-border);
+        border-left:4px solid var(--status-color, #0AA9F4);
+        border-radius:12px;
+        padding:.82rem .95rem;
+        margin:.5rem 0;
+    }
+    .attention-title { font-weight:800; color:var(--hse-ink); }
+    .attention-meta { color:var(--hse-muted); font-size:.86rem; margin-top:.2rem; }
+
+    .trust-strip {
+        display:flex;
+        gap:.55rem;
+        flex-wrap:wrap;
+        margin:.55rem 0 1.25rem;
+    }
+    .trust-item {
+        background:#FFFFFF;
+        border:1px solid var(--hse-border);
+        color:#496272;
+        border-radius:999px;
+        padding:.34rem .7rem;
+        font-size:.79rem;
+        font-weight:700;
+    }
+
+    .responsible-note {
+        border-left:4px solid #0AA9F4;
+        background:#EEF8FC;
+        padding:.8rem 1rem;
+        border-radius:10px;
+        color:#35586B;
+        font-size:.9rem;
+        margin:.7rem 0;
+    }
+
+    @media (max-width: 900px) {
+        .hse-stepper { grid-template-columns: 1fr 1fr; }
+        .risk-result-grid { grid-template-columns: 1fr; }
+        .block-container { padding-left: .8rem; padding-right: .8rem; }
     }
     </style>
     """,
     unsafe_allow_html=True
 )
-
 
 # =========================================================
 # ARCHIVIAZIONE SUPABASE (FREE TIER READY)
@@ -210,7 +418,15 @@ def _supabase_request(method, path, payload=None, query=None, privileged=False):
 
     req = urllib.request.Request(endpoint, data=body, method=method)
     req.add_header("apikey", key)
-    req.add_header("Authorization", f"Bearer {key}")
+
+    # Supabase distingue tra le nuove API key opache (sb_publishable_... /
+    # sb_secret_...) e le vecchie chiavi JWT (anon / service_role).
+    # Le nuove chiavi sb_* NON devono essere inviate come Bearer token:
+    # basta l'header apikey. Per compatibilità con eventuali chiavi legacy
+    # JWT continuiamo invece ad aggiungere Authorization: Bearer <key>.
+    if not str(key).startswith("sb_"):
+        req.add_header("Authorization", f"Bearer {key}")
+
     req.add_header("Content-Type", "application/json")
     req.add_header("Accept", "application/json")
     if method == "POST":
@@ -353,52 +569,234 @@ def assessments_dataframe(rows):
 
 def render_db_notice():
     st.info(
-        "La V2 è pronta per l'archiviazione gratuita su Supabase. "
-        "Il database non è ancora collegato: lo configureremo nel prossimo passaggio tramite Streamlit Secrets."
+        "Il database non è ancora collegato. Il calcolo resta disponibile, "
+        "mentre storico, dashboard ed export centralizzati richiedono Supabase."
     )
 
 
-def render_hero(title, subtitle, eyebrow="HSE RISK PLATFORM V2.1"):
+def risk_level_color(level):
+    return {
+        "Basso": "#24956A",
+        "Medio basso": "#7B9E30",
+        "Medio": "#C58B18",
+        "Alto": "#D36132",
+        "Critico": "#C53B3B",
+    }.get(str(level), "#0A7FB9")
+
+
+def risk_level_rank(level):
+    return {"Basso": 1, "Medio basso": 2, "Medio": 3, "Alto": 4, "Critico": 5}.get(str(level), 0)
+
+
+def safe_html(value):
+    return html.escape(str(value if value is not None else ""))
+
+
+def navigate_to(page_name):
+    """Callback sicura: eseguita prima del rerun del widget di navigazione."""
+    st.session_state["main_navigation"] = page_name
+
+
+def render_hero(title, subtitle, eyebrow="HSE RISK PLATFORM · V2.2"):
     st.markdown(
         f"""
         <div class="hse-hero">
-            <div class="hse-eyebrow">{eyebrow}</div>
-            <h1>{title}</h1>
-            <p>{subtitle}</p>
+            <div class="hse-eyebrow">{safe_html(eyebrow)}</div>
+            <h1>{safe_html(title)}</h1>
+            <p>{safe_html(subtitle)}</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
+def render_trust_strip(database_status=None):
+    db_text = database_status or ("Database connected" if database_ready() else "Database not connected")
+    st.markdown(
+        f"""
+        <div class="trust-strip">
+            <span class="trust-item">✓ Deterministic risk model</span>
+            <span class="trust-item">✓ Explainable drivers</span>
+            <span class="trust-item">✓ Traceable assessments</span>
+            <span class="trust-item">✓ {safe_html(db_text)}</span>
+            <span class="trust-item">Model V2.2</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def calculate_data_completeness(data):
+    """Misura prudenziale di completezza, non una certificazione della qualità del dato."""
+    score = 100
+    notes = []
+    if not str(data.get("nome", "")).strip():
+        score -= 25
+        notes.append("nome cantiere non valorizzato")
+    if not str(data.get("created_by", "")).strip():
+        score -= 10
+        notes.append("compilatore non indicato")
+    if not data.get("activities"):
+        score -= 20
+        notes.append("nessuna attività selezionata")
+    num_nc = int(data.get("num_nc", 0) or 0)
+    detailed_nc = len(data.get("nc_items") or [])
+    if num_nc > 0 and detailed_nc < num_nc:
+        missing_ratio = (num_nc - detailed_nc) / max(num_nc, 1)
+        deduction = min(20, round(20 * missing_ratio))
+        score -= deduction
+        notes.append(f"{num_nc - detailed_nc} NC non dettagliate")
+    awareness_count = int(data.get("awareness_count", 0) or 0)
+    if awareness_count > 0 and not data.get("awareness_types"):
+        score -= 15
+        notes.append("sensibilizzazioni senza tipologia")
+    score = max(0, min(100, int(score)))
+    if score >= 85:
+        label = "Buona"
+    elif score >= 65:
+        label = "Parziale"
+    else:
+        label = "Limitata"
+    return score, label, notes
+
+
+def _latest_with_delta(df):
+    if df.empty:
+        return df
+    ordered = df.sort_values(["Cantiere", "Data"]).copy()
+    ordered["Risk precedente"] = ordered.groupby("Cantiere")["Risk Index"].shift(1)
+    ordered["Delta"] = ordered["Risk Index"] - ordered["Risk precedente"]
+    return ordered.groupby("Cantiere", as_index=False).tail(1)
+
+
+def _previous_site_risk(site_name):
+    if not database_ready() or not str(site_name).strip():
+        return None
+    try:
+        df, _ = _load_archive_df()
+        subset = df[df["Cantiere"].astype(str).str.casefold() == str(site_name).strip().casefold()]
+        if subset.empty:
+            return None
+        return float(subset.sort_values("Data").iloc[-1]["Risk Index"])
+    except Exception:
+        return None
+
+
 def render_home():
     render_hero(
-        "Safety intelligence, in one place.",
-        "Calcola il Risk Index, archivia le valutazioni, monitora i trend e prepara estrazioni filtrate da un'unica piattaforma.",
+        "Operational HSE risk, made visible.",
+        "Un unico punto di accesso per valutare il rischio, leggere i trend, consultare lo storico e costruire dataset di reporting.",
+        eyebrow="HSE RISK PLATFORM · OVERVIEW"
     )
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown('<div class="hse-card"><h3>🧮 Risk Assessment</h3><p>La logica di calcolo esistente resta invariata, con report operativo, scorecard, action plan e toolkit.</p><span class="hse-badge">Calcolo + salvataggio</span></div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown('<div class="hse-card"><h3>📊 Dashboard & Storico</h3><p>Visualizza Risk Index, trend per cantiere, volumi di valutazione e indicatori HSE nel tempo.</p><span class="hse-badge">Dati centralizzati</span></div>', unsafe_allow_html=True)
-    with c3:
-        st.markdown('<div class="hse-card"><h3>📥 Estrazione dati</h3><p>Combina filtri operativi, consulta l’anteprima e genera export Excel o CSV pronti per reporting.</p><span class="hse-badge">Filtri avanzati</span></div>', unsafe_allow_html=True)
-    with c4:
-        st.markdown('<div class="hse-card"><h3>🔐 Gestione archivio</h3><p>Area Admin separata per manutenzione e cancellazione controllata delle valutazioni.</p><span class="hse-badge">Accesso protetto</span></div>', unsafe_allow_html=True)
 
-    st.markdown("### Stato piattaforma")
+    df = pd.DataFrame()
+    db_error = None
     if database_ready():
         try:
             rows = fetch_assessments(limit=10000)
-            df = assessments_dataframe(rows)
-            a, b, c = st.columns(3)
-            a.metric("Valutazioni archiviate", len(df))
-            b.metric("Cantieri monitorati", int(df["Cantiere"].nunique()) if not df.empty else 0)
-            c.metric("Database", "Connesso")
+            df = enrich_assessments_dataframe(assessments_dataframe(rows))
         except Exception as exc:
-            st.warning(f"Database configurato ma non raggiungibile: {exc}")
+            db_error = str(exc)
+
+    render_trust_strip("Database connected" if database_ready() and not db_error else "Database unavailable" if db_error else "Database not connected")
+
+    cta1, cta2, cta3 = st.columns([1.25, 1, 1])
+    with cta1:
+        st.button(
+            "＋ Nuova valutazione",
+            type="primary",
+            use_container_width=True,
+            on_click=navigate_to,
+            args=("🧮 Risk Assessment",),
+            key="home_new_assessment",
+        )
+    with cta2:
+        st.button(
+            "Apri Dashboard",
+            use_container_width=True,
+            on_click=navigate_to,
+            args=("📊 Dashboard & Storico",),
+            key="home_dashboard",
+        )
+    with cta3:
+        st.button(
+            "Estrai dati",
+            use_container_width=True,
+            on_click=navigate_to,
+            args=("📥 Estrazione dati",),
+            key="home_export",
+        )
+
+    st.markdown("### Portfolio overview")
+    if db_error:
+        st.warning(f"Database configurato ma non raggiungibile: {db_error}")
+    if not df.empty:
+        latest = _latest_with_delta(df)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Cantieri monitorati", int(df["Cantiere"].nunique()))
+        k2.metric("Valutazioni", len(df))
+        k3.metric("Risk medio portfolio", f"{latest['Risk Index'].mean():.1f}")
+        k4.metric("Siti Alto / Critico", int(latest["Livello"].isin(["Alto", "Critico"]).sum()))
+
+        attention = latest.sort_values(["Risk Index", "Data"], ascending=[False, False]).head(4)
+        st.markdown("### Attention required")
+        if attention.empty:
+            st.info("Nessun dato disponibile.")
+        else:
+            for _, row in attention.iterrows():
+                color = risk_level_color(row["Livello"])
+                delta = row.get("Delta")
+                if pd.isna(delta):
+                    delta_text = "prima valutazione"
+                elif delta > 0:
+                    delta_text = f"↑ +{delta:.1f} vs precedente"
+                elif delta < 0:
+                    delta_text = f"↓ {delta:.1f} vs precedente"
+                else:
+                    delta_text = "→ invariato"
+                when = pd.Timestamp(row["Data"]).strftime("%d/%m/%Y") if pd.notna(row["Data"]) else "—"
+                st.markdown(
+                    f"""
+                    <div class="attention-item" style="--status-color:{color}">
+                        <div class="attention-title">{safe_html(row['Cantiere'])} · Risk {float(row['Risk Index']):.0f} · {safe_html(row['Livello'])}</div>
+                        <div class="attention-meta">{when} · {safe_html(delta_text)} · fase {safe_html(row['Fase'])}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
     else:
-        render_db_notice()
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Cantieri monitorati", 0)
+        k2.metric("Valutazioni", 0)
+        k3.metric("Risk medio portfolio", "—")
+        k4.metric("Siti Alto / Critico", 0)
+        if not database_ready():
+            render_db_notice()
+        else:
+            st.info("Il database è connesso. Salva la prima valutazione per popolare la dashboard.")
+
+    st.markdown("### Workspace")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(
+            '<div class="hse-card"><div class="hse-kicker">ASSESS</div><h3>Risk Assessment</h3><p>Workflow guidato, risultato spiegabile, driver, action plan e salvataggio controllato.</p><span class="hse-badge">Decision support</span></div>',
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            '<div class="hse-card"><div class="hse-kicker">MONITOR</div><h3>Dashboard & History</h3><p>Trend, confronto tra cantieri, ultima valutazione e dettaglio storico tracciabile.</p><span class="hse-badge">Portfolio view</span></div>',
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            '<div class="hse-card"><div class="hse-kicker">REPORT</div><h3>Data Export</h3><p>Filtri combinabili, anteprima del perimetro e download Excel/CSV per reporting.</p><span class="hse-badge">Controlled export</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        '<div class="responsible-note"><b>Responsible use.</b> Il Risk Index supporta la prioritizzazione e la lettura dei segnali HSE. Non sostituisce la valutazione dei rischi, le procedure applicabili, il giudizio professionale o le responsabilità previste dalla normativa.</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _load_archive_df():
@@ -437,7 +835,7 @@ def render_assessment_detail(payload, archive_row=None):
         c.metric("Fase", str(archive_row.get("Fase", "")))
         d.metric("Compilato da", str(archive_row.get("Compilato da", "")) or "—")
 
-    t1, t2, t3, t4 = st.tabs(["📋 Input", "📈 Driver", "✅ Azioni", "🧭 Output"] )
+    t1, t2, t3, t4 = st.tabs(["Input", "Risk drivers", "Actions", "Decision output"])
     with t1:
         input_rows = [
             ("Ispezioni", data.get("inspections", 0)),
@@ -471,7 +869,7 @@ def render_assessment_detail(payload, archive_row=None):
             st.markdown("#### Action Plan")
             st.dataframe(action_plan, use_container_width=True, hide_index=True)
         if not actions.empty:
-            st.markdown("#### Azioni suggerite")
+            st.markdown("#### Recommended actions")
             st.dataframe(actions, use_container_width=True, hide_index=True)
         if not scorecard.empty:
             st.markdown("#### HSE Scorecard")
@@ -487,9 +885,9 @@ def render_assessment_detail(payload, archive_row=None):
 
 def render_dashboard():
     render_hero(
-        "Dashboard & Storico",
-        "Analizza il portfolio HSE, confronta i cantieri e apri il dettaglio di ogni valutazione archiviata.",
-        eyebrow="ANALYTICS · V2.1"
+        "Portfolio risk overview",
+        "Individua dove intervenire, verifica l'andamento dei cantieri e apri il dettaglio tracciabile delle valutazioni storiche.",
+        eyebrow="DASHBOARD & HISTORY · V2.2"
     )
     if not database_ready():
         render_db_notice()
@@ -503,17 +901,22 @@ def render_dashboard():
         st.info("Nessuna valutazione ancora archiviata.")
         return
 
+    last_update = df["Data"].max()
+    if pd.notna(last_update):
+        st.caption(f"Data updated · {pd.Timestamp(last_update).strftime('%d/%m/%Y %H:%M')} · Model V2.2")
+
     min_date = df["Data"].min().date()
     max_date = df["Data"].max().date()
-    f1, f2, f3 = st.columns([1.25, 1, 1])
-    with f1:
-        period = st.date_input("Periodo dashboard", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="dash_period")
-    with f2:
-        site_options = ["Tutti"] + sorted(df["Cantiere"].dropna().astype(str).unique().tolist())
-        selected_site = st.selectbox("Cantiere", site_options, key="dash_site")
-    with f3:
-        level_options = ["Tutti", "Basso", "Medio basso", "Medio", "Alto", "Critico"]
-        selected_level = st.selectbox("Livello", level_options, key="dash_level")
+    with st.expander("Filters", expanded=True):
+        f1, f2, f3 = st.columns([1.25, 1, 1])
+        with f1:
+            period = st.date_input("Periodo", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="dash_period")
+        with f2:
+            site_options = ["Tutti"] + sorted(df["Cantiere"].dropna().astype(str).unique().tolist())
+            selected_site = st.selectbox("Cantiere", site_options, key="dash_site")
+        with f3:
+            level_options = ["Tutti", "Basso", "Medio basso", "Medio", "Alto", "Critico"]
+            selected_level = st.selectbox("Risk level", level_options, key="dash_level")
 
     view = _filter_by_period(df, period)
     if selected_site != "Tutti":
@@ -525,80 +928,128 @@ def render_dashboard():
         st.warning("Nessuna valutazione corrisponde ai filtri selezionati.")
         return
 
-    latest = view.sort_values("Data").groupby("Cantiere", as_index=False).tail(1)
-    latest_high = int(latest["Livello"].isin(["Alto", "Critico"]).sum())
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Valutazioni", len(view))
-    k2.metric("Cantieri", int(view["Cantiere"].nunique()))
-    k3.metric("Risk medio", f"{view['Risk Index'].mean():.1f}")
-    k4.metric("Risk massimo", f"{view['Risk Index'].max():.1f}")
-    k5.metric("Siti Alto/Critico", latest_high)
+    latest = _latest_with_delta(view)
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Cantieri", int(view["Cantiere"].nunique()))
+    k2.metric("Risk medio attuale", f"{latest['Risk Index'].mean():.1f}")
+    k3.metric("Siti Alto / Critico", int(latest["Livello"].isin(["Alto", "Critico"]).sum()))
+    k4.metric("Valutazioni nel periodo", len(view))
 
-    left, right = st.columns([1.7, 1])
+    st.markdown("### Attention required")
+    attention = latest.sort_values(["Risk Index", "Data"], ascending=[False, False]).head(5)
+    for _, row in attention.iterrows():
+        color = risk_level_color(row["Livello"])
+        delta = row.get("Delta")
+        if pd.isna(delta):
+            delta_text = "prima valutazione nel perimetro"
+        elif delta > 0:
+            delta_text = f"↑ +{delta:.1f}"
+        elif delta < 0:
+            delta_text = f"↓ {delta:.1f}"
+        else:
+            delta_text = "→ 0.0"
+        st.markdown(
+            f"""
+            <div class="attention-item" style="--status-color:{color}">
+                <div class="attention-title">{safe_html(row['Cantiere'])} · Risk {float(row['Risk Index']):.0f} · {safe_html(row['Livello'])}</div>
+                <div class="attention-meta">Trend {safe_html(delta_text)} · NC {int(row.get('NC',0) or 0)} · Interferenza {int(row.get('Interferenza',0) or 0)}/10 · {safe_html(row.get('Fase',''))}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    left, right = st.columns([1.65, 1])
     with left:
-        st.markdown("### Andamento Risk Index")
+        st.markdown("### Risk evolution")
         trend = (
             alt.Chart(view.dropna(subset=["Data", "Risk Index"]))
-            .mark_line(point=True, strokeWidth=3)
+            .mark_line(point=True, strokeWidth=2.7)
             .encode(
                 x=alt.X("Data:T", title="Data"),
                 y=alt.Y("Risk Index:Q", scale=alt.Scale(domain=[0, 100]), title="Risk Index"),
                 color=alt.Color("Cantiere:N", legend=alt.Legend(title="Cantiere")),
                 tooltip=["Codice:N", "Cantiere:N", alt.Tooltip("Data:T"), alt.Tooltip("Risk Index:Q", format=".1f"), "Livello:N"]
-            ).properties(height=380)
+            ).properties(height=360)
         )
         st.altair_chart(trend, use_container_width=True)
     with right:
-        st.markdown("### Distribuzione livelli")
-        level_counts = view.groupby("Livello", as_index=False).size().rename(columns={"size": "Valutazioni"})
+        st.markdown("### Current risk distribution")
+        level_counts = latest.groupby("Livello", as_index=False).size().rename(columns={"size": "Cantieri"})
         level_chart = (
             alt.Chart(level_counts)
             .mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5)
             .encode(
                 x=alt.X("Livello:N", sort=["Basso", "Medio basso", "Medio", "Alto", "Critico"], title=None),
-                y=alt.Y("Valutazioni:Q", title="Valutazioni"),
-                tooltip=["Livello:N", "Valutazioni:Q"]
-            ).properties(height=380)
+                y=alt.Y("Cantieri:Q", title="Cantieri"),
+                color=alt.Color(
+                    "Livello:N",
+                    scale=alt.Scale(
+                        domain=["Basso", "Medio basso", "Medio", "Alto", "Critico"],
+                        range=["#24956A", "#7B9E30", "#C58B18", "#D36132", "#C53B3B"],
+                    ),
+                    legend=None,
+                ),
+                tooltip=["Livello:N", "Cantieri:Q"]
+            ).properties(height=360)
         )
         st.altair_chart(level_chart, use_container_width=True)
 
-    st.markdown("### Indicatori operativi nel tempo")
-    indicator = st.selectbox("Indicatore", ["NC", "Ispezioni", "Interferenza", "Criticità aperte", "Sensibilizzazioni", "Indice detection"], key="dash_indicator")
+    st.markdown("### Operational signal")
+    indicator = st.selectbox(
+        "Indicatore da analizzare",
+        ["NC", "Ispezioni", "Interferenza", "Criticità aperte", "Sensibilizzazioni", "Indice detection"],
+        key="dash_indicator",
+    )
     indicator_chart = (
         alt.Chart(view.dropna(subset=["Data"]))
-        .mark_line(point=True, strokeWidth=2.4)
+        .mark_line(point=True, strokeWidth=2.25)
         .encode(
             x=alt.X("Data:T", title="Data"),
             y=alt.Y(f"{indicator}:Q", title=indicator),
             color=alt.Color("Cantiere:N", legend=alt.Legend(title="Cantiere")),
             tooltip=["Codice:N", "Cantiere:N", alt.Tooltip("Data:T"), alt.Tooltip(f"{indicator}:Q", format=".2f")]
-        ).properties(height=300)
+        ).properties(height=285)
     )
     st.altair_chart(indicator_chart, use_container_width=True)
 
-    st.markdown("### Ultima valutazione per cantiere")
-    st.dataframe(
-        latest[["Codice", "Cantiere", "Data", "Risk Index", "Livello", "NC", "Ispezioni", "Interferenza", "Compilato da"]].sort_values("Risk Index", ascending=False),
-        use_container_width=True, hide_index=True,
-    )
+    st.markdown("### Current project status")
+    current_table = latest[["Codice", "Cantiere", "Data", "Risk Index", "Livello", "Delta", "NC", "Ispezioni", "Interferenza", "Compilato da"]].copy()
+    current_table = current_table.sort_values("Risk Index", ascending=False)
+    st.dataframe(current_table, use_container_width=True, hide_index=True)
 
-    st.markdown("### Storico valutazioni")
+    st.markdown("### Assessment history")
     history = view.sort_values("Data", ascending=False)
-    st.dataframe(history[["Codice", "Cantiere", "Data", "Fase", "Risk Index", "Livello", "Compilato da"]], use_container_width=True, hide_index=True)
-
-    options = {f"{row['Codice']} · {row['Cantiere']} · Risk {float(row['Risk Index']):.1f}": row for _, row in history.iterrows()}
-    selected_label = st.selectbox("Apri dettaglio valutazione", ["— Seleziona —"] + list(options.keys()), key="history_detail")
-    if selected_label != "— Seleziona —":
-        row = options[selected_label]
-        payload = _payload_for_id(rows, row["ID"])
-        render_assessment_detail(payload, row.to_dict())
+    h1, h2 = st.columns([1, 1.7])
+    with h1:
+        timeline_site = st.selectbox("Timeline cantiere", sorted(history["Cantiere"].dropna().astype(str).unique()), key="timeline_site")
+        site_history = history[history["Cantiere"] == timeline_site].sort_values("Data", ascending=False).head(8)
+        for _, row in site_history.iterrows():
+            color = risk_level_color(row["Livello"])
+            when = pd.Timestamp(row["Data"]).strftime("%d %b %Y") if pd.notna(row["Data"]) else "—"
+            st.markdown(
+                f"""
+                <div class="timeline-item" style="--status-color:{color}">
+                    <div class="attention-title">{when} · Risk {float(row['Risk Index']):.0f}</div>
+                    <div class="attention-meta">{safe_html(row['Livello'])} · {safe_html(row['Fase'])} · NC {int(row.get('NC',0) or 0)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    with h2:
+        st.dataframe(history[["Codice", "Cantiere", "Data", "Fase", "Risk Index", "Livello", "Compilato da"]], use_container_width=True, hide_index=True)
+        options = {f"{row['Codice']} · {row['Cantiere']} · Risk {float(row['Risk Index']):.1f}": row for _, row in history.iterrows()}
+        selected_label = st.selectbox("Open assessment detail", ["— Seleziona —"] + list(options.keys()), key="history_detail")
+        if selected_label != "— Seleziona —":
+            row = options[selected_label]
+            payload = _payload_for_id(rows, row["ID"])
+            render_assessment_detail(payload, row.to_dict())
 
 
 def render_extraction():
     render_hero(
-        "Estrazione dati",
-        "Costruisci un perimetro di analisi con filtri combinabili e scarica un dataset pronto per reporting e analisi.",
-        eyebrow="REPORTING · V2.1"
+        "Build your dataset",
+        "Definisci il perimetro, verifica quali record saranno inclusi e scarica solo i dati necessari al reporting.",
+        eyebrow="DATA EXPORT · V2.2"
     )
     if not database_ready():
         render_db_notice()
@@ -614,27 +1065,28 @@ def render_extraction():
 
     min_date = df["Data"].min().date()
     max_date = df["Data"].max().date()
-    f1, f2, f3 = st.columns(3)
-    with f1:
-        period = st.date_input("Periodo", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="extract_period")
-    with f2:
-        sites = st.multiselect("Cantiere", sorted(df["Cantiere"].dropna().astype(str).unique()), placeholder="Tutti i cantieri")
-    with f3:
-        phases = st.multiselect("Fase", sorted(df["Fase"].dropna().astype(str).unique()), placeholder="Tutte le fasi")
+    with st.expander("Filters · lascia vuoto per includere tutti i valori", expanded=True):
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            period = st.date_input("Periodo", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="extract_period")
+        with f2:
+            sites = st.multiselect("Cantiere", sorted(df["Cantiere"].dropna().astype(str).unique()), placeholder="Tutti i cantieri", key="extract_sites")
+        with f3:
+            phases = st.multiselect("Fase", sorted(df["Fase"].dropna().astype(str).unique()), placeholder="Tutte le fasi", key="extract_phases")
 
-    f4, f5, f6 = st.columns(3)
-    with f4:
-        levels = st.multiselect("Livello rischio", ["Basso", "Medio basso", "Medio", "Alto", "Critico"], placeholder="Tutti i livelli")
-    with f5:
-        authors = st.multiselect("Compilato da", sorted([x for x in df["Compilato da"].dropna().astype(str).unique() if x.strip()]), placeholder="Tutti")
-    with f6:
-        risk_range = st.slider("Risk Index", 0, 100, (0, 100), key="extract_risk")
+        f4, f5, f6 = st.columns(3)
+        with f4:
+            levels = st.multiselect("Risk level", ["Basso", "Medio basso", "Medio", "Alto", "Critico"], placeholder="Tutti i livelli", key="extract_levels")
+        with f5:
+            authors = st.multiselect("Compilato da", sorted([x for x in df["Compilato da"].dropna().astype(str).unique() if x.strip()]), placeholder="Tutti", key="extract_authors")
+        with f6:
+            risk_range = st.slider("Risk Index", 0, 100, (0, 100), key="extract_risk")
 
-    f7, f8 = st.columns(2)
-    with f7:
-        activity_text = st.text_input("Attività contiene", placeholder="es. scavi, elettrici")
-    with f8:
-        min_nc = st.number_input("NC minime", min_value=0, value=0, step=1)
+        f7, f8 = st.columns(2)
+        with f7:
+            activity_text = st.text_input("Attività contiene", placeholder="es. scavi, elettrici", key="extract_activity")
+        with f8:
+            min_nc = st.number_input("NC minime", min_value=0, value=0, step=1, key="extract_min_nc")
 
     filtered = _filter_by_period(df.copy(), period)
     if sites:
@@ -650,11 +1102,15 @@ def render_extraction():
     if activity_text.strip():
         filtered = filtered[filtered["Attività"].fillna("").str.contains(activity_text.strip(), case=False, regex=False)]
 
-    k1, k2, k3 = st.columns(3)
+    st.markdown("### Selection summary")
+    k1, k2, k3, k4 = st.columns(4)
     k1.metric("Valutazioni incluse", len(filtered))
     k2.metric("Cantieri inclusi", int(filtered["Cantiere"].nunique()) if not filtered.empty else 0)
     k3.metric("Risk medio", f"{filtered['Risk Index'].mean():.1f}" if not filtered.empty else "—")
+    k4.metric("Alto / Critico", int(filtered["Livello"].isin(["Alto", "Critico"]).sum()) if not filtered.empty else 0)
 
+    st.markdown("### Preview")
+    st.caption("L'anteprima riflette esattamente il perimetro che verrà esportato.")
     st.dataframe(filtered.sort_values("Data", ascending=False), use_container_width=True, hide_index=True)
     if filtered.empty:
         st.warning("Nessun record corrisponde ai filtri selezionati.")
@@ -672,45 +1128,69 @@ def render_extraction():
             {"Indicatore": "Risk medio", "Valore": round(float(filtered["Risk Index"].mean()), 2)},
             {"Indicatore": "Risk massimo", "Valore": round(float(filtered["Risk Index"].max()), 2)},
             {"Indicatore": "Alto/Critico", "Valore": int(filtered["Livello"].isin(["Alto", "Critico"]).sum())},
+            {"Indicatore": "Generato il", "Valore": datetime.now().strftime("%d/%m/%Y %H:%M")},
+            {"Indicatore": "Model version", "Valore": "V2.2"},
         ])
         summary.to_excel(writer, sheet_name="Sintesi", index=False)
     excel_buffer.seek(0)
 
+    st.markdown("### Export")
     e1, e2 = st.columns(2)
     with e1:
-        st.download_button("⬇️ Esporta CSV", csv_data, "HSE_Risk_Export.csv", "text/csv", use_container_width=True)
+        st.download_button("Download CSV", csv_data, "HSE_Risk_Export.csv", "text/csv", use_container_width=True)
     with e2:
-        st.download_button("⬇️ Esporta Excel", excel_buffer, "HSE_Risk_Export.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        st.download_button("Download Excel", excel_buffer, "HSE_Risk_Export.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 
 def render_methodology():
     render_hero(
-        "Metodologia",
-        "Trasparenza del modello, criteri di lettura e perimetro di utilizzo del Risk Index.",
-        eyebrow="MODEL GOVERNANCE"
+        "Model governance & methodology",
+        "Come leggere il Risk Index, quali dati lo influenzano e quali sono i limiti di utilizzo della piattaforma.",
+        eyebrow="TRANSPARENCY · MODEL V2.2"
     )
-    st.markdown("### Classificazione del Risk Index")
-    st.dataframe(pd.DataFrame([
-        {"Intervallo": "0–20", "Livello": "Basso"},
-        {"Intervallo": "21–40", "Livello": "Medio basso"},
-        {"Intervallo": "41–60", "Livello": "Medio"},
-        {"Intervallo": "61–80", "Livello": "Alto"},
-        {"Intervallo": "81–100", "Livello": "Critico"},
-    ]), hide_index=True, use_container_width=True)
-    st.markdown(
-        "Il modello combina non conformità, criticità, attività, interferenze, complessità organizzativa, "
-        "copertura HSE, detection, rapporto ispezioni/NC e correlazioni critiche. Sensibilizzazioni e Stop Work "
-        "agiscono come bonus entro limiti definiti. La fase del cantiere non genera un malus diretto, ma viene usata "
-        "per verificare la coerenza delle sensibilizzazioni."
+    render_trust_strip()
+
+    g1, g2 = st.columns([1, 1.2])
+    with g1:
+        st.markdown("### Risk classification")
+        st.dataframe(pd.DataFrame([
+            {"Intervallo": "0–20", "Livello": "Basso"},
+            {"Intervallo": "21–40", "Livello": "Medio basso"},
+            {"Intervallo": "41–60", "Livello": "Medio"},
+            {"Intervallo": "61–80", "Livello": "Alto"},
+            {"Intervallo": "81–100", "Livello": "Critico"},
+        ]), hide_index=True, use_container_width=True)
+    with g2:
+        st.markdown("### What drives the score")
+        st.markdown(
+            "Il modello combina **non conformità, criticità, attività, interferenze, complessità organizzativa, "
+            "copertura HSE, detection, rapporto ispezioni/NC e correlazioni critiche**. Sensibilizzazioni e Stop Work "
+            "agiscono come fattori protettivi entro limiti definiti. La fase del cantiere non genera un malus diretto, "
+            "ma viene utilizzata per verificare la coerenza delle sensibilizzazioni."
+        )
+
+    st.markdown("### Responsible platform principles")
+    p1, p2, p3 = st.columns(3)
+    with p1:
+        st.markdown('<div class="hse-card"><h3>Explainability</h3><p>Il punteggio viene accompagnato dai driver positivi e negativi, così l’utente può comprenderne la formazione.</p></div>', unsafe_allow_html=True)
+    with p2:
+        st.markdown('<div class="hse-card"><h3>Traceability</h3><p>Ogni valutazione salvata conserva data, cantiere, compilatore, input principali e output del modello.</p></div>', unsafe_allow_html=True)
+    with p3:
+        st.markdown('<div class="hse-card"><h3>Human oversight</h3><p>La piattaforma supporta la decisione, ma non automatizza autorizzazioni, Stop Work o giudizi professionali.</p></div>', unsafe_allow_html=True)
+
+    st.markdown("### Model limitations")
+    st.info(
+        "Il Risk Index è uno strumento di supporto decisionale. Non sostituisce la valutazione dei rischi prevista dalla normativa, "
+        "il PSC/POS/DUVRI o altra documentazione applicabile, le procedure aziendali, le verifiche sul campo e il giudizio professionale. "
+        "Il risultato dipende dalla correttezza e dalla completezza dei dati inseriti."
     )
-    st.info("Il Risk Index è uno strumento di supporto decisionale e non sostituisce la valutazione dei rischi prevista dalla normativa, il giudizio professionale o le misure di sicurezza applicabili al sito.")
 
 
 def render_admin():
     render_hero(
-        "Gestione archivio",
-        "Area riservata per la manutenzione dello storico. La cancellazione utilizza una chiave server-side separata dalla chiave pubblica dell'app.",
-        eyebrow="ADMIN · V2.1"
+        "Archive management",
+        "Area riservata per la manutenzione dello storico. Le operazioni distruttive sono separate dall'esperienza utente ordinaria.",
+        eyebrow="ADMIN · V2.2"
     )
     if not database_ready():
         render_db_notice()
@@ -718,17 +1198,18 @@ def render_admin():
     if not admin_ready():
         st.warning(
             "Area Admin non ancora attiva. Per abilitarla aggiungi nei Secrets di Streamlit "
-            "`ADMIN_PASSWORD` e `SUPABASE_SECRET_KEY`. La Publishable key resta invariata per gli utenti normali."
+            "`ADMIN_PASSWORD` e `SUPABASE_SECRET_KEY`."
         )
-        st.info("Finché non configuri questi due Secrets, nessun utente può cancellare valutazioni dall'app.")
+        st.info("Finché questi Secrets non sono configurati, nessun utente può cancellare valutazioni dall'app.")
         return
 
     if "admin_authenticated" not in st.session_state:
         st.session_state.admin_authenticated = False
 
     if not st.session_state.admin_authenticated:
+        st.markdown('<div class="responsible-note"><b>Restricted area.</b> L’accesso Admin abilita operazioni irreversibili sullo storico. Utilizzare solo per correzioni o manutenzione autorizzata.</div>', unsafe_allow_html=True)
         password = st.text_input("Password amministratore", type="password", key="admin_password_input")
-        if st.button("🔐 Accedi all'area Admin", type="primary", use_container_width=True):
+        if st.button("Accedi all'area Admin", type="primary", use_container_width=True):
             if password and password == get_admin_password():
                 st.session_state.admin_authenticated = True
                 st.rerun()
@@ -753,7 +1234,7 @@ def render_admin():
         st.info("Archivio vuoto.")
         return
 
-    st.markdown("### Valutazioni archiviate")
+    st.markdown("### Archived assessments")
     st.dataframe(df[["Codice", "Cantiere", "Data", "Fase", "Risk Index", "Livello", "Compilato da"]].sort_values("Data", ascending=False), use_container_width=True, hide_index=True)
 
     labels = {f"{row['Codice']} · {row['Cantiere']} · {row['Data']:%d/%m/%Y %H:%M}": row for _, row in df.sort_values("Data", ascending=False).iterrows()}
@@ -763,11 +1244,11 @@ def render_admin():
     with st.expander("Visualizza dettaglio prima dell'eliminazione", expanded=False):
         render_assessment_detail(payload, row.to_dict())
 
-    st.markdown("### 🗑️ Eliminazione")
-    st.warning("Operazione definitiva: la valutazione verrà rimossa da Supabase e sparirà immediatamente da Dashboard e Storico.")
+    st.markdown("### Delete assessment")
+    st.warning("Operazione definitiva: il record verrà rimosso da Supabase e sparirà immediatamente da Dashboard, Storico ed Estrazione.")
     confirm = st.checkbox(f"Confermo di voler eliminare {row['Codice']}", key="admin_confirm_delete")
     typed = st.text_input("Scrivi ELIMINA per confermare", key="admin_delete_text")
-    if st.button("🗑️ Elimina definitivamente", type="primary", use_container_width=True, disabled=not (confirm and typed.strip().upper() == "ELIMINA")):
+    if st.button("Elimina definitivamente", type="primary", use_container_width=True, disabled=not (confirm and typed.strip().upper() == "ELIMINA")):
         try:
             delete_assessment(row["ID"])
             st.success(f"Valutazione {row['Codice']} eliminata correttamente.")
@@ -3375,20 +3856,26 @@ if "advisor_answer" not in st.session_state:
 
 
 # =========================================================
-# NAVIGAZIONE PRINCIPALE V2
+# NAVIGAZIONE PRINCIPALE V2.2
 # =========================================================
+if st.session_state.get("main_navigation") == "🏠 Home":
+    st.session_state["main_navigation"] = "🏠 Overview"
 with st.sidebar:
-    st.markdown("## ⚡ HSE Risk Platform")
-    st.caption("Versione 2.1 · Risk intelligence & reporting")
+    st.markdown("## HSE RISK")
+    st.markdown("**PLATFORM**")
+    st.caption("Operational risk intelligence")
+    st.write("")
     page = st.radio(
         "Navigazione",
-        ["🏠 Home", "🧮 Risk Assessment", "📊 Dashboard & Storico", "📥 Estrazione dati", "ℹ️ Metodologia", "🔐 Admin"],
+        ["🏠 Overview", "🧮 Risk Assessment", "📊 Dashboard & Storico", "📥 Estrazione dati", "ℹ️ Metodologia", "🔐 Admin"],
         label_visibility="collapsed",
         key="main_navigation"
     )
     st.divider()
+    st.caption("Model V2.2 · Deterministic engine")
+    st.caption("Supabase archive · Server-side Admin")
 
-if page == "🏠 Home":
+if page == "🏠 Overview":
     render_home()
     st.stop()
 elif page == "📊 Dashboard & Storico":
@@ -3406,306 +3893,235 @@ elif page == "🔐 Admin":
 
 
 # =========================================================
-# INTERFACCIA
+# RISK ASSESSMENT · GUIDED WORKFLOW
 # =========================================================
 render_hero(
-    "Risk Assessment",
-    "Calcola il Risk Index con il motore HSE esistente, analizza i driver e salva la valutazione nello storico della V2.",
-    eyebrow="ASSESSMENT ENGINE"
+    "New Risk Assessment",
+    "Inserisci i dati operativi, verifica la completezza dell'assessment e calcola un Risk Index spiegabile prima dell'eventuale salvataggio.",
+    eyebrow="ASSESSMENT ENGINE · MODEL V2.2"
+)
+render_trust_strip()
+
+st.markdown(
+    """
+    <div class="hse-stepper">
+        <div class="hse-step"><span>01</span>Project</div>
+        <div class="hse-step"><span>02</span>HSE Performance</div>
+        <div class="hse-step"><span>03</span>Organisation</div>
+        <div class="hse-step"><span>04</span>Activities</div>
+        <div class="hse-step"><span>05</span>Review</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-st.markdown('<span class="hse-badge">Motore locale · nessuna API AI richiesta</span>', unsafe_allow_html=True)
-st.write("")
+step1, step2, step3, step4, step5 = st.tabs([
+    "01 · Project",
+    "02 · HSE Performance",
+    "03 · Organisation",
+    "04 · Activities",
+    "05 · Review & Calculate",
+])
 
-
-with st.sidebar:
-    st.header("📋 Dati cantiere")
-
-    nome = st.text_input(
-        "Nome cantiere",
-        value="Cantiere Demo",
-        help=(
-            "Identifica il sito o il progetto. Il nome viene riportato "
-            "nei report PowerPoint, Excel e nella checklist Word."
+with step1:
+    st.markdown("### Project context")
+    c1, c2, c3 = st.columns([1.35, 1, 1])
+    with c1:
+        nome = st.text_input(
+            "Nome cantiere *",
+            value="",
+            placeholder="es. Udine BESS",
+            key="assessment_site",
+            help="Identifica il sito o il progetto. Il nome sarà utilizzato nello storico e nei report.",
         )
-    )
-
-    created_by = st.text_input(
-        "Compilato da",
-        value="",
-        placeholder="Nome e cognome",
-        help="Il nominativo viene salvato nello storico insieme alla valutazione."
-    )
-
-    fase = st.selectbox(
-        "Fase",
-        [
-            "cantierizzazione",
-            "costruzione",
-            "commissioning",
-            "punch list"
-        ],
-        help=(
-            "La fase non aumenta direttamente il Risk Index. "
-            "Serve per contestualizzare gli output e premiare "
-            "le sensibilizzazioni coerenti con il momento operativo."
+    with c2:
+        fase = st.selectbox(
+            "Fase *",
+            ["cantierizzazione", "costruzione", "commissioning", "punch list"],
+            key="assessment_phase",
+            help="La fase contestualizza gli output e la coerenza delle sensibilizzazioni; non genera un malus diretto.",
         )
-    )
-
-    st.divider()
-
-    # -----------------------------------------------------
-    # CONTROLLI E NC
-    # -----------------------------------------------------
-    st.header("🔍 Controlli e NC")
-
-    inspections = st.number_input(
-        "Numero ispezioni",
-        min_value=0,
-        max_value=1000,
-        value=10,
-        help=(
-            "Numero di ispezioni HSE eseguite nel periodo analizzato. "
-            "Influisce sull'indice di detection e sul rapporto ispezioni/NC."
+    with c3:
+        created_by = st.text_input(
+            "Compilato da",
+            value="",
+            placeholder="Nome e cognome",
+            key="assessment_author",
+            help="Il nominativo viene salvato nello storico per garantire tracciabilità.",
         )
+    st.markdown(
+        '<div class="responsible-note"><b>Traceability.</b> Usa un nome cantiere coerente nel tempo e indica il compilatore quando possibile: migliora la leggibilità dello storico senza modificare il Risk Index.</div>',
+        unsafe_allow_html=True,
     )
 
-    num_nc = st.number_input(
-        "Numero totale NC",
-        min_value=0,
-        max_value=300,
-        value=0,
-        help=(
-            "Numero complessivo di non conformità rilevate. "
-            "Le NC dettagliate ricevono un peso per tema e gravità; "
-            "quelle non dettagliate ricevono un peso prudenziale medio."
+with step2:
+    st.markdown("### Controls & non-conformities")
+    a1, a2, a3 = st.columns(3)
+    with a1:
+        inspections = st.number_input(
+            "Numero ispezioni",
+            min_value=0,
+            max_value=1000,
+            value=10,
+            key="assessment_inspections",
+            help="Numero di ispezioni HSE eseguite nel periodo analizzato.",
         )
-    )
+    with a2:
+        num_nc = st.number_input(
+            "Numero totale NC",
+            min_value=0,
+            max_value=300,
+            value=0,
+            key="assessment_num_nc",
+            help="Numero complessivo di non conformità rilevate nel periodo.",
+        )
+    with a3:
+        stopworks = st.number_input(
+            "Stop Work",
+            min_value=0,
+            max_value=100,
+            value=0,
+            key="assessment_stopworks",
+            help="Segnale positivo di cultura della sicurezza con bonus limitato nel modello.",
+        )
 
     nc_items = []
-
     nc_count_detail = st.number_input(
-        "Quante NC vuoi dettagliare?",
+        "NC da dettagliare",
         min_value=0,
         max_value=20,
-        value=min(num_nc, 3),
-        help=(
-            "Permette di specificare tema e gravità delle NC principali. "
-            "Il numero non può superare il totale delle NC inserite."
-        )
+        value=0,
+        key="assessment_nc_detail_count",
+        help="Dettaglia tema e gravità delle NC per migliorare la precisione e la spiegabilità del risultato.",
     )
+    effective_nc_detail = min(int(nc_count_detail), int(num_nc), 20)
+    if num_nc > 20:
+        st.caption("È possibile dettagliare fino a 20 NC; le restanti saranno trattate secondo la logica prudenziale già prevista dal modello.")
+    if int(nc_count_detail) > int(num_nc):
+        st.warning("Il numero di NC dettagliate non può superare il totale NC: il calcolo userà solo le prime NC coerenti con il totale indicato.")
 
-    for index in range(nc_count_detail):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            theme = st.selectbox(
-                f"Tema NC {index + 1}",
-                list(NC_THEME_WEIGHTS.keys()),
-                key=f"nc_theme_{index}",
-                help=(
-                    "Il tema determina il peso tecnico della NC. "
-                    "Temi ad alto potenziale, come elettrico o spazi "
-                    "confinati, hanno un impatto maggiore."
+    if effective_nc_detail:
+        st.markdown("#### Non-conformity detail")
+        for index in range(effective_nc_detail):
+            col1, col2 = st.columns(2)
+            with col1:
+                theme = st.selectbox(
+                    f"Tema NC {index + 1}",
+                    list(NC_THEME_WEIGHTS.keys()),
+                    key=f"nc_theme_{index}",
                 )
-            )
-
-        with col2:
-            severity = st.selectbox(
-                f"Gravità NC {index + 1}",
-                [
-                    "bassa",
-                    "media",
-                    "alta"
-                ],
-                key=f"nc_severity_{index}",
-                help=(
-                    "La gravità integra il peso del tema: bassa +3, "
-                    "media +8, alta +16 punti grezzi."
+            with col2:
+                severity = st.selectbox(
+                    f"Gravità NC {index + 1}",
+                    ["bassa", "media", "alta"],
+                    key=f"nc_severity_{index}",
                 )
-            )
+            nc_items.append({"theme": theme, "severity": severity})
 
-        nc_items.append({
-            "theme": theme,
-            "severity": severity
-        })
+    st.markdown("### Follow-up of critical issues")
+    q1, q2, q3 = st.columns(3)
+    with q1:
+        crit_open = st.number_input("Criticità aperte", min_value=0, max_value=200, value=0, key="assessment_crit_open")
+    with q2:
+        crit_ontime = st.number_input("Risolte nei tempi", min_value=0, max_value=200, value=0, key="assessment_crit_ontime")
+    with q3:
+        crit_late = st.number_input("Risolte in ritardo", min_value=0, max_value=200, value=0, key="assessment_crit_late")
 
-    st.divider()
-
-    # -----------------------------------------------------
-    # STOP WORK E CRITICITÀ
-    # -----------------------------------------------------
-    st.header("⛔ Stop Work e criticità")
-
-    stopworks = st.number_input(
-        "Stop Work",
-        min_value=0,
-        max_value=100,
-        value=0,
-        help=(
-            "Gli Stop Work sono considerati esclusivamente come bonus "
-            "di cultura della sicurezza: -1,5 punti ciascuno, con un "
-            "massimo di -6 punti complessivi."
+    st.markdown("### Awareness")
+    w1, w2 = st.columns([1, 2])
+    with w1:
+        awareness_count = st.number_input(
+            "Sensibilizzazioni effettuate",
+            min_value=0,
+            max_value=1000,
+            value=0,
+            key="assessment_awareness_count",
         )
-    )
-
-    crit_open = st.number_input(
-        "Criticità aperte",
-        min_value=0,
-        max_value=200,
-        value=0,
-        help=(
-            "Criticità ancora da risolvere. Hanno il peso maggiore "
-            "nel driver criticità perché rappresentano esposizioni attive."
+    with w2:
+        awareness_types = st.multiselect(
+            "Tipologie sensibilizzazioni",
+            list(AWARENESS_BONUS.keys()),
+            key="assessment_awareness_types",
+            help="Seleziona le tipologie realmente svolte. Il modello verifica anche la coerenza con attività e fase.",
         )
-    )
 
-    crit_ontime = st.number_input(
-        "Criticità risolte in tempo",
-        min_value=0,
-        max_value=200,
-        value=0,
-        help=(
-            "Criticità chiuse entro la scadenza. Mantengono un peso "
-            "residuo limitato per rappresentare l'evento rilevato."
+with step3:
+    st.markdown("### Organisation & HSE coverage")
+    o1, o2, o3 = st.columns(3)
+    with o1:
+        app = st.number_input(
+            "Numero appaltatori",
+            min_value=0,
+            max_value=100,
+            value=1,
+            key="assessment_contractors",
         )
-    )
-
-    crit_late = st.number_input(
-        "Criticità risolte in ritardo",
-        min_value=0,
-        max_value=200,
-        value=0,
-        help=(
-            "Criticità chiuse oltre la scadenza. Generano un malus "
-            "per evidenziare debolezze nel follow-up."
+    with o2:
+        sub = st.number_input(
+            "Numero subappaltatori",
+            min_value=0,
+            max_value=100,
+            value=0,
+            key="assessment_subcontractors",
         )
-    )
-
-    st.divider()
-
-    # -----------------------------------------------------
-    # ORGANIZZAZIONE
-    # -----------------------------------------------------
-    st.header("🏗️ Organizzazione")
-
-    app = st.number_input(
-        "Numero appaltatori",
-        min_value=0,
-        max_value=100,
-        value=1,
-        help=(
-            "Numero di imprese appaltatrici presenti. Contribuisce "
-            "alla complessità organizzativa e al calcolo della copertura HSE."
+    with o3:
+        company_hse = st.number_input(
+            "HSE delle imprese",
+            min_value=0,
+            max_value=100,
+            value=1,
+            key="assessment_company_hse",
+            help="Il modello confronta questo valore con il numero di appaltatori.",
         )
-    )
 
-    sub = st.number_input(
-        "Numero subappaltatori",
-        min_value=0,
-        max_value=100,
-        value=0,
-        help=(
-            "Numero di imprese subappaltatrici presenti. Ha un peso "
-            "maggiore degli appaltatori nella complessità organizzativa."
-        )
-    )
+    if app > 0:
+        ratio = company_hse / app
+        if ratio < 1:
+            st.warning(f"Copertura HSE inferiore al rapporto 1:1 ({company_hse}/{app}). Il modello applicherà un malus proporzionato.")
+        elif ratio == 1:
+            st.success("Copertura HSE in rapporto 1:1 con gli appaltatori: fascia neutra del modello.")
+        else:
+            st.info(f"Copertura HSE superiore al rapporto 1:1 ({company_hse}/{app}). Il bonus resta comunque limitato.")
 
-    company_hse = st.number_input(
-        "Numero HSE delle imprese",
-        min_value=0,
-        max_value=100,
-        value=1,
-        help=(
-            "Il valore viene confrontato con il numero "
-            "degli appaltatori. Rapporto 1:1 neutro; "
-            "copertura inferiore genera malus; "
-            "copertura superiore genera bonus."
-        )
-    )
-
-    st.divider()
-
-    # -----------------------------------------------------
-    # ATTIVITÀ
-    # -----------------------------------------------------
-    st.header("⚙️ Attività in corso")
-
+with step4:
+    st.markdown("### Activities & interference")
     activities = st.multiselect(
-        "Tipologie attività presenti",
+        "Tipologie attività presenti *",
         list(ACTIVITY_WEIGHTS.keys()),
         default=["civili"],
-        help=(
-            "Seleziona tutte le lavorazioni effettivamente in corso. "
-            "Tipologia, numero e contemporaneità incidono sul rischio "
-            "e sulle correlazioni con NC e sensibilizzazioni."
-        )
+        key="assessment_activities",
+        help="Seleziona tutte le lavorazioni effettivamente in corso nel periodo analizzato.",
     )
-
     interference_level = st.slider(
         "Livello di interferenza delle attività",
         min_value=1,
         max_value=10,
         value=3,
         step=1,
-        help=(
-            "1 indica interferenze minime; "
-            "10 indica interferenze molto elevate. "
-            "L'impatto è corretto in base alla tipologia "
-            "e al numero delle attività selezionate."
-        )
+        key="assessment_interference",
+        help="Valutazione dell'interferenza effettiva tra lavorazioni, corretta dal modello per criticità e contemporaneità.",
     )
+    i1, i2, i3 = st.columns(3)
+    i1.metric("Attività contemporanee", len(activities))
+    i2.metric("Interferenza dichiarata", f"{interference_level}/10")
+    if activities:
+        preview_interference, _, _ = calculate_interference_score(interference_level, normalize_list(activities))
+        i3.metric("Interference score", f"{preview_interference:.1f}")
+    else:
+        i3.metric("Interference score", "—")
 
     if interference_level <= 3:
-        st.caption("🟢 Interferenza bassa")
+        st.success("Interferenza dichiarata bassa.")
     elif interference_level <= 5:
-        st.caption("🟡 Interferenza moderata")
+        st.info("Interferenza dichiarata moderata.")
     elif interference_level <= 7:
-        st.caption("🟠 Interferenza elevata")
+        st.warning("Interferenza dichiarata elevata: verificare coordinamento, sequenze e segregazioni.")
     else:
-        st.caption("🔴 Interferenza molto elevata")
+        st.error("Interferenza dichiarata molto elevata: verificare separazione temporale/spaziale e condizioni di prosecuzione.")
 
-    st.divider()
-
-    # -----------------------------------------------------
-    # SENSIBILIZZAZIONI
-    # -----------------------------------------------------
-    st.header("🧠 Sensibilizzazioni")
-
-    awareness_count = st.number_input(
-        "Numero sensibilizzazioni effettuate",
-        min_value=0,
-        max_value=1000,
-        value=0,
-        help=(
-            "Numero complessivo di toolbox o sensibilizzazioni eseguite "
-            "nel periodo. La continuità genera un bonus limitato."
-        )
-    )
-
-    awareness_types = st.multiselect(
-        "Tipologie sensibilizzazioni effettuate",
-        list(AWARENESS_BONUS.keys()),
-        help=(
-            "La tipologia determina il bonus e permette di verificare "
-            "la coerenza con le attività presenti e con la fase del cantiere."
-        )
-    )
-
-    st.divider()
-
-    calcola = st.button(
-        "Calcola rischio",
-        type="primary",
-        use_container_width=True
-    )
-
-
-# =========================================================
-# AVVIO DEL CALCOLO
-# =========================================================
-if calcola:
-    data = {
+with step5:
+    st.markdown("### Review your assessment")
+    draft_data = {
         "nome": nome,
         "created_by": created_by,
         "fase": fase,
@@ -3719,23 +4135,61 @@ if calcola:
         "app": app,
         "sub": sub,
         "company_hse": company_hse,
-        "activities": normalize_list(
-            activities
-        ),
+        "activities": normalize_list(activities),
         "interference_level": interference_level,
         "awareness_count": awareness_count,
-        "awareness_types": normalize_list(
-            awareness_types
-        )
+        "awareness_types": normalize_list(awareness_types),
     }
+    completeness, completeness_label, completeness_notes = calculate_data_completeness(draft_data)
 
-    run_calculation(data)
+    r1, r2, r3, r4 = st.columns(4)
+    r1.metric("Cantiere", nome.strip() or "Da valorizzare")
+    r2.metric("NC", int(num_nc))
+    r3.metric("Interferenza", f"{interference_level}/10")
+    r4.metric("Completezza dati", f"{completeness}%")
+
+    review_rows = pd.DataFrame([
+        {"Area": "Project", "Sintesi": f"{nome.strip() or '—'} · {fase} · {created_by.strip() or 'compilatore non indicato'}"},
+        {"Area": "HSE performance", "Sintesi": f"{inspections} ispezioni · {num_nc} NC · {stopworks} Stop Work · {crit_open} criticità aperte"},
+        {"Area": "Organisation", "Sintesi": f"{app} appaltatori · {sub} subappaltatori · {company_hse} HSE imprese"},
+        {"Area": "Activities", "Sintesi": f"{len(activities)} attività · interferenza {interference_level}/10"},
+        {"Area": "Awareness", "Sintesi": f"{awareness_count} sensibilizzazioni · {len(awareness_types)} tipologie"},
+    ])
+    st.dataframe(review_rows, use_container_width=True, hide_index=True)
+
+    if completeness_notes:
+        st.warning("Completezza dati: " + completeness_label + ". Verifica: " + "; ".join(completeness_notes) + ".")
+    else:
+        st.success("Completezza dati buona: non risultano incoerenze di compilazione rilevanti.")
+
+    st.markdown(
+        '<div class="responsible-note"><b>Before calculation.</b> Il risultato riflette esclusivamente i dati inseriti. Verifica che il perimetro temporale e operativo sia coerente e che le NC più rilevanti siano dettagliate.</div>',
+        unsafe_allow_html=True,
+    )
+
+    calcola = st.button(
+        "Calculate Risk Index",
+        type="primary",
+        use_container_width=True,
+        key="calculate_risk_v22",
+        disabled=not bool(nome.strip()) or not bool(activities),
+    )
+    if not nome.strip():
+        st.caption("Inserisci il nome del cantiere per abilitare il calcolo.")
+    elif not activities:
+        st.caption("Seleziona almeno un'attività per abilitare il calcolo.")
+
+
+# =========================================================
+# AVVIO DEL CALCOLO
+# =========================================================
+if calcola:
+    run_calculation(draft_data)
 
 
 if not st.session_state.calcolo_effettuato:
     st.info(
-        "Compila i dati nella sidebar e clicca su "
-        "**Calcola rischio**."
+        "Completa i cinque step dell’assessment e usa **Calculate Risk Index** nella sezione Review."
     )
     st.stop()
 
@@ -3763,19 +4217,105 @@ scorecard_overall = report["scorecard_overall"]
 
 
 # =========================================================
+# DECISION OUTPUT · RESULT + TRACEABILITY
+# =========================================================
+completeness, completeness_label, completeness_notes = calculate_data_completeness(data)
+previous_risk = _previous_site_risk(data.get("nome", ""))
+risk_color = risk_level_color(level)
+risk_position = max(0, min(100, float(risk)))
+
+if previous_risk is None:
+    trend_text = "Prima valutazione disponibile per questo cantiere"
+else:
+    delta = float(risk) - float(previous_risk)
+    if delta > 0:
+        trend_text = f"↑ +{delta:.1f} rispetto all'ultima valutazione salvata"
+    elif delta < 0:
+        trend_text = f"↓ {delta:.1f} rispetto all'ultima valutazione salvata"
+    else:
+        trend_text = "→ invariato rispetto all'ultima valutazione salvata"
+
+st.markdown("## Decision output")
+st.markdown(
+    f"""
+    <div class="risk-result" style="--risk-color:{risk_color}; --risk-position:{risk_position}%">
+        <div class="risk-result-grid">
+            <div>
+                <div class="hse-kicker">RISK INDEX</div>
+                <div><span class="risk-number">{float(risk):.0f}</span> <span class="risk-denom">/ 100</span></div>
+                <div class="risk-level">{safe_html(level).upper()}</div>
+            </div>
+            <div>
+                <div class="hse-kicker">RISK POSITION</div>
+                <div class="risk-bar"><div class="risk-marker"></div></div>
+                <div style="display:flex;justify-content:space-between;color:#708591;font-size:.77rem;"><span>Low</span><span>Medium</span><span>High</span><span>Critical</span></div>
+                <p style="margin:.75rem 0 0;color:#435F70;"><b>{safe_html(data['nome'])}</b> · {safe_html(data['fase'])} · {safe_html(trend_text)}</p>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Data completeness", f"{completeness}%", completeness_label)
+k2.metric("Detection", technical_data["nc_detection_ratio"])
+k3.metric("Interferenza", f"{data['interference_level']} / 10")
+k4.metric("Copertura HSE", f"{data['company_hse']} / {data['app']}")
+
+positive_drivers = driver_df[driver_df["Valore"] > 0].sort_values("Valore", ascending=False).head(4)
+protective_drivers = driver_df[driver_df["Valore"] < 0].sort_values("Valore").head(4)
+left_driver, right_driver = st.columns(2)
+with left_driver:
+    st.markdown("### Main risk drivers")
+    if positive_drivers.empty:
+        st.info("Nessun driver negativo dominante.")
+    else:
+        items = "".join(
+            f"<li><span>{safe_html(row['Driver'])}</span><b>+{float(row['Valore']):.1f}</b></li>"
+            for _, row in positive_drivers.iterrows()
+        )
+        st.markdown(f'<div class="hse-panel"><ul class="driver-list">{items}</ul></div>', unsafe_allow_html=True)
+with right_driver:
+    st.markdown("### Protective factors")
+    if protective_drivers.empty:
+        st.info("Nessun bonus significativo applicato.")
+    else:
+        items = "".join(
+            f"<li><span>{safe_html(row['Driver'])}</span><b>{float(row['Valore']):.1f}</b></li>"
+            for _, row in protective_drivers.iterrows()
+        )
+        st.markdown(f'<div class="hse-panel"><ul class="driver-list">{items}</ul></div>', unsafe_allow_html=True)
+
+st.markdown("### Executive Summary")
+st.markdown(summary)
+
+if completeness_notes:
+    st.warning("Data completeness " + completeness_label.lower() + ": " + "; ".join(completeness_notes) + ".")
+if data["company_hse"] < data["app"]:
+    st.warning("La copertura HSE delle imprese è inferiore al numero degli appaltatori.")
+if data["interference_level"] >= 8:
+    st.error("Interferenza molto elevata: il punteggio non sostituisce la verifica immediata delle condizioni operative e delle misure di coordinamento.")
+
+st.markdown(
+    '<div class="responsible-note"><b>Interpretation.</b> Il Risk Index è un indicatore sintetico e spiegabile. Un valore basso non dimostra automaticamente l’assenza di condizioni pericolose; NC ad alta gravità o rischi non controllati richiedono comunque gestione specifica.</div>',
+    unsafe_allow_html=True,
+)
+
+# =========================================================
 # SALVATAGGIO VALUTAZIONE
 # =========================================================
-st.markdown("### 💾 Archiviazione valutazione")
+st.markdown("### Save assessment")
 col_save_info, col_save_button = st.columns([2.4, 1])
 with col_save_info:
     if database_ready():
-        st.caption("Database connesso. Il salvataggio archivia input, risultato, driver, action plan e scorecard.")
+        st.caption("Il salvataggio archivia input, risultato, driver, action plan, scorecard, data e compilatore. Le simulazioni non vengono archiviate automaticamente.")
     else:
-        st.caption("Il calcolo funziona già. Il salvataggio diventerà persistente appena collegheremo Supabase Free.")
+        st.caption("Database non connesso: il report resta disponibile nella sessione corrente ma non sarà persistente.")
 with col_save_button:
-    if st.button("💾 Salva valutazione", type="primary", use_container_width=True, key="save_assessment"):
+    if st.button("Save assessment", type="primary", use_container_width=True, key="save_assessment"):
         if not database_ready():
-            st.warning("Database non ancora configurato. Il calcolo non viene perso nella sessione corrente, ma non è ancora archiviato in modo permanente.")
+            st.warning("Database non configurato: impossibile archiviare in modo persistente.")
         else:
             try:
                 saved = save_assessment(report, data.get("created_by", ""))
@@ -3784,105 +4324,7 @@ with col_save_button:
             except Exception as exc:
                 st.error(f"Salvataggio non riuscito: {exc}")
 
-
-# =========================================================
-# KPI
-# =========================================================
-col1, col2, col3, col4, col5 = st.columns(5)
-
-col1.metric(
-    "Risk Index",
-    f"{round(risk)} / 100"
-)
-
-col2.metric(
-    "Livello",
-    level
-)
-
-col3.metric(
-    "Indice detection",
-    technical_data["nc_detection_ratio"]
-)
-
-col4.metric(
-    "Interferenza",
-    f"{data['interference_level']} / 10"
-)
-
-col5.metric(
-    "Copertura HSE",
-    f"{data['company_hse']} / {data['app']}"
-)
-
 st.divider()
-
-
-# =========================================================
-# GRAFICO E SUMMARY
-# =========================================================
-left, right = st.columns(
-    [1.3, 1]
-)
-
-with left:
-    st.subheader("📊 Impatto dei driver sul Risk Index")
-
-    st.caption(
-        "Le colonne rosse aumentano il rischio. "
-        "Le colonne verdi rappresentano bonus che riducono l'indice."
-    )
-
-    chart = create_driver_chart(
-        driver_df
-    )
-
-    st.altair_chart(
-        chart,
-        use_container_width=True
-    )
-
-with right:
-    st.subheader("🤖 Executive Summary locale")
-
-    st.markdown(summary)
-
-    if (
-        data["awareness_count"] > 0
-        and not data["awareness_types"]
-    ):
-        st.warning(
-            "Hai inserito sensibilizzazioni senza tipologia. "
-            "Seleziona le tipologie per valorizzarle nel calcolo."
-        )
-
-    if (
-        data["num_nc"]
-        > len(data["nc_items"])
-    ):
-        st.warning(
-            f"Hai indicato {data['num_nc']} NC totali, "
-            f"ma ne hai dettagliate solo "
-            f"{len(data['nc_items'])}. "
-            "Alle NC non dettagliate viene applicato "
-            "un peso prudenziale medio."
-        )
-
-    if data["company_hse"] < data["app"]:
-        st.error(
-            "La copertura HSE delle imprese è inferiore "
-            "al numero degli appaltatori."
-        )
-
-    if data["interference_level"] >= 8:
-        st.error(
-            "Il livello di interferenza dichiarato "
-            "è molto elevato."
-        )
-
-
-st.divider()
-
 
 # =========================================================
 # TAB
@@ -3894,7 +4336,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🧰 Toolbox Talk",
     "📉 Riduci rischio",
     "🧮 Dettaglio calcolo",
-    "💬 HSE Advisor",
+    "🧭 HSE Guidance",
     "⭐ HSE Scorecard",
     "📑 HSE Toolkit",
     "📤 Export"
@@ -3914,7 +4356,7 @@ with tab3:
     st.markdown(root_cause)
 
 with tab4:
-    st.subheader("Toolbox Talk locale")
+    st.subheader("Toolbox Talk")
     st.markdown(toolbox)
 
 with tab5:
@@ -3939,13 +4381,14 @@ with tab6:
     st.dataframe(technical_df, use_container_width=True, hide_index=True)
 
 with tab7:
-    st.subheader("Chiedi all'HSE Advisor locale")
+    st.subheader("HSE Guidance · rules-based")
+    st.caption("Questa funzione non utilizza AI generativa o API esterne: interpreta la valutazione tramite regole deterministiche definite nel codice.")
     question = st.text_input(
         "Fai una domanda sul report",
         placeholder="Esempio: la copertura HSE è sufficiente?",
         key="advisor_question"
     )
-    if st.button("Chiedi all'Advisor", key="advisor_button"):
+    if st.button("Generate guidance", key="advisor_button"):
         if question.strip():
             st.session_state.advisor_answer = local_hse_advisor(
                 question, data, risk, level, actions_df, technical_data
