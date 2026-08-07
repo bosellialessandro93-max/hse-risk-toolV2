@@ -1,0 +1,6 @@
+streamlit
+pandas
+altair
+python-pptx
+python-docx
+openpyxl
