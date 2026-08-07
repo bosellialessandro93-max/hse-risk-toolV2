@@ -211,12 +211,12 @@ def _supabase_request(method, path, payload=None, query=None, privileged=False):
     req = urllib.request.Request(endpoint, data=body, method=method)
     req.add_header("apikey", key)
 
-    # Le nuove Supabase Secret API keys (sb_secret_...) non sono JWT e
-    # non devono essere inviate come Bearer token. Per le richieste
-    # privilegiate lato server è sufficiente l'header apikey.
-    # La chiave pubblica/publishable continua invece a essere usata anche
-    # nell'header Authorization per mantenere compatibilità con PostgREST.
-    if not privileged:
+    # Supabase distingue tra le nuove API key opache (sb_publishable_... /
+    # sb_secret_...) e le vecchie chiavi JWT (anon / service_role).
+    # Le nuove chiavi sb_* NON devono essere inviate come Bearer token:
+    # basta l'header apikey. Per compatibilità con eventuali chiavi legacy
+    # JWT continuiamo invece ad aggiungere Authorization: Bearer <key>.
+    if not str(key).startswith("sb_"):
         req.add_header("Authorization", f"Bearer {key}")
 
     req.add_header("Content-Type", "application/json")
@@ -366,7 +366,7 @@ def render_db_notice():
     )
 
 
-def render_hero(title, subtitle, eyebrow="HSE RISK PLATFORM V2.1.1"):
+def render_hero(title, subtitle, eyebrow="HSE RISK PLATFORM V2.1.2"):
     st.markdown(
         f"""
         <div class="hse-hero">
@@ -497,7 +497,7 @@ def render_dashboard():
     render_hero(
         "Dashboard & Storico",
         "Analizza il portfolio HSE, confronta i cantieri e apri il dettaglio di ogni valutazione archiviata.",
-        eyebrow="ANALYTICS · V2.1.1"
+        eyebrow="ANALYTICS · V2.1.2"
     )
     if not database_ready():
         render_db_notice()
@@ -606,7 +606,7 @@ def render_extraction():
     render_hero(
         "Estrazione dati",
         "Costruisci un perimetro di analisi con filtri combinabili e scarica un dataset pronto per reporting e analisi.",
-        eyebrow="REPORTING · V2.1.1"
+        eyebrow="REPORTING · V2.1.2"
     )
     if not database_ready():
         render_db_notice()
@@ -718,7 +718,7 @@ def render_admin():
     render_hero(
         "Gestione archivio",
         "Area riservata per la manutenzione dello storico. La cancellazione utilizza una chiave server-side separata dalla chiave pubblica dell'app.",
-        eyebrow="ADMIN · V2.1.1"
+        eyebrow="ADMIN · V2.1.2"
     )
     if not database_ready():
         render_db_notice()
