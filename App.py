@@ -1,5 +1,9 @@
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, date
+import json
+import urllib.parse
+import urllib.request
+import urllib.error
 
 import altair as alt
 import pandas as pd
@@ -16,10 +20,461 @@ from docx.shared import Pt, Inches as DocxInches
 # CONFIGURAZIONE STREAMLIT
 # =========================================================
 st.set_page_config(
-    page_title="HSE Risk Platform AI Locale",
+    page_title="HSE Risk Platform V2",
     page_icon="🦺",
     layout="wide"
 )
+
+
+
+# =========================================================
+# DESIGN SYSTEM V2
+# =========================================================
+st.markdown(
+    """
+    <style>
+    :root {
+        --hse-electric: #00B8FF;
+        --hse-blue: #0078D4;
+        --hse-navy: #071B2B;
+        --hse-slate: #123247;
+        --hse-soft: #EAF8FF;
+        --hse-border: #D8E8F3;
+    }
+
+    .stApp {
+        background:
+            radial-gradient(circle at 88% 4%, rgba(0,184,255,.11), transparent 22rem),
+            linear-gradient(180deg, #F8FCFF 0%, #FFFFFF 42%);
+    }
+
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #061A2A 0%, #0C2C43 100%);
+        border-right: 1px solid rgba(255,255,255,.08);
+    }
+    [data-testid="stSidebar"] * { color: #F4FBFF; }
+    [data-testid="stSidebar"] label { color: #EAF8FF !important; }
+    [data-testid="stSidebar"] [data-baseweb="select"] * { color: #0B2233 !important; }
+    [data-testid="stSidebar"] input { color: #0B2233 !important; }
+
+    .hse-hero {
+        padding: 2rem 2.2rem;
+        border-radius: 24px;
+        background: linear-gradient(115deg, #071B2B 0%, #0A3551 58%, #006FAE 100%);
+        box-shadow: 0 18px 50px rgba(7, 45, 70, .18);
+        margin-bottom: 1.25rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .hse-hero:after {
+        content: "";
+        position: absolute;
+        width: 260px; height: 260px;
+        border-radius: 50%;
+        right: -80px; top: -120px;
+        background: rgba(0,184,255,.23);
+        filter: blur(3px);
+    }
+    .hse-eyebrow {
+        color: #67D9FF;
+        font-weight: 700;
+        letter-spacing: .14em;
+        font-size: .78rem;
+        text-transform: uppercase;
+        margin-bottom: .45rem;
+    }
+    .hse-hero h1 { color: white; margin: 0; font-size: 2.25rem; }
+    .hse-hero p { color: #DCEFF8; max-width: 900px; margin: .75rem 0 0; font-size: 1.02rem; }
+
+    .hse-card {
+        background: rgba(255,255,255,.95);
+        border: 1px solid var(--hse-border);
+        border-radius: 18px;
+        padding: 1.25rem 1.35rem;
+        box-shadow: 0 8px 26px rgba(12,62,92,.07);
+        min-height: 150px;
+    }
+    .hse-card h3 { margin-top: 0; color: #0B3550; }
+    .hse-card p { color: #526B7B; }
+    .hse-accent { color: var(--hse-electric); font-weight: 800; }
+
+    div[data-testid="stMetric"] {
+        background: rgba(255,255,255,.96);
+        border: 1px solid var(--hse-border);
+        border-radius: 16px;
+        padding: 1rem 1.05rem;
+        box-shadow: 0 8px 24px rgba(9,63,94,.06);
+    }
+    div[data-testid="stMetric"] label { color: #5B7484 !important; }
+
+    .stButton > button,
+    .stDownloadButton > button {
+        border-radius: 11px !important;
+        min-height: 44px;
+        font-weight: 700 !important;
+        border: 1px solid #0099D8 !important;
+        transition: all .16s ease-in-out;
+        box-shadow: 0 6px 18px rgba(0,120,212,.13);
+    }
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
+        transform: translateY(-1px);
+        border-color: #00B8FF !important;
+        box-shadow: 0 9px 24px rgba(0,120,212,.22);
+    }
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(100deg, #0078D4 0%, #00B8FF 100%) !important;
+        color: white !important;
+        border: none !important;
+    }
+    .stDownloadButton > button {
+        background: #FFFFFF !important;
+        color: #006AA6 !important;
+    }
+
+    div[data-baseweb="tab-list"] {
+        gap: .35rem;
+        background: #F3F9FD;
+        padding: .35rem;
+        border-radius: 14px;
+        border: 1px solid #E1EDF5;
+    }
+    button[data-baseweb="tab"] {
+        border-radius: 10px;
+        padding-left: .85rem !important;
+        padding-right: .85rem !important;
+    }
+
+    .hse-section-title {
+        color: #0A3551;
+        font-weight: 800;
+        margin-top: .35rem;
+    }
+    .hse-badge {
+        display: inline-block;
+        padding: .28rem .7rem;
+        border-radius: 999px;
+        background: #E6F7FF;
+        color: #0078D4;
+        border: 1px solid #BFEAFF;
+        font-weight: 700;
+        font-size: .82rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# =========================================================
+# ARCHIVIAZIONE SUPABASE (FREE TIER READY)
+# =========================================================
+def get_supabase_config():
+    """Legge le credenziali da Streamlit Secrets senza esporle nel codice."""
+    try:
+        url = st.secrets.get("SUPABASE_URL", "")
+        key = st.secrets.get("SUPABASE_KEY", "")
+    except Exception:
+        url, key = "", ""
+    return str(url).rstrip("/"), str(key)
+
+
+def database_ready():
+    url, key = get_supabase_config()
+    return bool(url and key)
+
+
+def _supabase_request(method, path, payload=None, query=None):
+    url, key = get_supabase_config()
+    if not url or not key:
+        raise RuntimeError("Database non configurato: aggiungi SUPABASE_URL e SUPABASE_KEY nei Secrets.")
+
+    endpoint = f"{url}/rest/v1/{path}"
+    if query:
+        endpoint += "?" + urllib.parse.urlencode(query, safe="*,.()")
+
+    body = None
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+
+    req = urllib.request.Request(endpoint, data=body, method=method)
+    req.add_header("apikey", key)
+    req.add_header("Authorization", f"Bearer {key}")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json")
+    if method == "POST":
+        req.add_header("Prefer", "return=representation")
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else []
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Errore database ({exc.code}): {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Connessione database non disponibile: {exc.reason}") from exc
+
+
+def build_storage_payload(report, created_by=""):
+    data = report["data"]
+    return {
+        "project_name": data.get("nome", ""),
+        "phase": data.get("fase", ""),
+        "risk": round(float(report["risk"]), 2),
+        "level": report["level"],
+        "created_by": created_by or data.get("created_by", ""),
+        "payload": {
+            "data": data,
+            "technical_data": report["technical_data"],
+            "summary": report["summary"],
+            "root_cause": report["root_cause"],
+            "drivers": report["driver_df"].to_dict(orient="records"),
+            "actions": report["actions_df"].to_dict(orient="records"),
+            "action_plan": report["action_plan_df"].to_dict(orient="records"),
+            "scorecard": report["scorecard_df"].to_dict(orient="records"),
+            "scorecard_overall": report["scorecard_overall"],
+        }
+    }
+
+
+def save_assessment(report, created_by=""):
+    return _supabase_request(
+        "POST",
+        "risk_assessments",
+        payload=build_storage_payload(report, created_by)
+    )
+
+
+def fetch_assessments(limit=5000):
+    if not database_ready():
+        return []
+    return _supabase_request(
+        "GET",
+        "risk_assessments",
+        query={
+            "select": "id,created_at,project_name,phase,risk,level,created_by,payload",
+            "order": "created_at.desc",
+            "limit": str(limit),
+        }
+    )
+
+
+def assessments_dataframe(rows):
+    records = []
+    for row in rows:
+        payload = row.get("payload") or {}
+        data = payload.get("data") or {}
+        technical = payload.get("technical_data") or {}
+        records.append({
+            "ID": row.get("id"),
+            "Data": row.get("created_at"),
+            "Cantiere": row.get("project_name") or data.get("nome", ""),
+            "Fase": row.get("phase") or data.get("fase", ""),
+            "Risk Index": row.get("risk"),
+            "Livello": row.get("level"),
+            "Compilato da": row.get("created_by", ""),
+            "Ispezioni": data.get("inspections", 0),
+            "NC": data.get("num_nc", 0),
+            "Stop Work": data.get("stopworks", 0),
+            "Criticità aperte": data.get("crit_open", 0),
+            "Appaltatori": data.get("app", 0),
+            "Subappaltatori": data.get("sub", 0),
+            "HSE imprese": data.get("company_hse", 0),
+            "Interferenza": data.get("interference_level", 0),
+            "Sensibilizzazioni": data.get("awareness_count", 0),
+            "Indice detection": technical.get("nc_detection_ratio", 0),
+            "Attività": ", ".join(data.get("activities", [])),
+        })
+    df = pd.DataFrame(records)
+    if not df.empty:
+        df["Data"] = pd.to_datetime(df["Data"], errors="coerce", utc=True).dt.tz_convert(None)
+        df["Risk Index"] = pd.to_numeric(df["Risk Index"], errors="coerce")
+    return df
+
+
+def render_db_notice():
+    st.info(
+        "La V2 è pronta per l'archiviazione gratuita su Supabase. "
+        "Il database non è ancora collegato: lo configureremo nel prossimo passaggio tramite Streamlit Secrets."
+    )
+
+
+def render_hero(title, subtitle, eyebrow="HSE RISK PLATFORM V2"):
+    st.markdown(
+        f"""
+        <div class="hse-hero">
+            <div class="hse-eyebrow">{eyebrow}</div>
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_home():
+    render_hero(
+        "Safety intelligence, in one place.",
+        "Calcola il Risk Index, archivia le valutazioni, monitora i trend e prepara estrazioni filtrate da un'unica piattaforma.",
+    )
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown('<div class="hse-card"><h3>🧮 Risk Assessment</h3><p>La logica di calcolo esistente resta invariata, con report operativo, scorecard, action plan e toolkit.</p><span class="hse-badge">Calcolo + salvataggio</span></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="hse-card"><h3>📊 Dashboard & Storico</h3><p>Visualizza Risk Index, trend per cantiere, volumi di valutazione e indicatori HSE nel tempo.</p><span class="hse-badge">Dati centralizzati</span></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown('<div class="hse-card"><h3>📥 Estrazione dati</h3><p>Filtra per periodo, cantiere, fase e livello di rischio prima di esportare i risultati.</p><span class="hse-badge">Excel / CSV</span></div>', unsafe_allow_html=True)
+
+    st.markdown("### Stato piattaforma")
+    if database_ready():
+        try:
+            rows = fetch_assessments(limit=10000)
+            df = assessments_dataframe(rows)
+            a, b, c = st.columns(3)
+            a.metric("Valutazioni archiviate", len(df))
+            b.metric("Cantieri monitorati", int(df["Cantiere"].nunique()) if not df.empty else 0)
+            c.metric("Database", "Connesso")
+        except Exception as exc:
+            st.warning(f"Database configurato ma non raggiungibile: {exc}")
+    else:
+        render_db_notice()
+
+
+def render_dashboard():
+    render_hero(
+        "Dashboard & Storico",
+        "Una vista manageriale sull'andamento del rischio, con trend temporali e confronto tra cantieri.",
+        eyebrow="ANALYTICS"
+    )
+    if not database_ready():
+        render_db_notice()
+        return
+    try:
+        df = assessments_dataframe(fetch_assessments())
+    except Exception as exc:
+        st.error(str(exc))
+        return
+    if df.empty:
+        st.info("Nessuna valutazione ancora archiviata.")
+        return
+
+    site_options = ["Tutti"] + sorted(df["Cantiere"].dropna().astype(str).unique().tolist())
+    selected_site = st.selectbox("Cantiere", site_options, key="dash_site")
+    view = df if selected_site == "Tutti" else df[df["Cantiere"] == selected_site]
+
+    latest = view.sort_values("Data").groupby("Cantiere", as_index=False).tail(1)
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Valutazioni", len(view))
+    k2.metric("Cantieri", int(view["Cantiere"].nunique()))
+    k3.metric("Risk medio", f"{view['Risk Index'].mean():.1f}")
+    k4.metric("Alto / Critico", int(view["Livello"].isin(["Alto", "Critico"]).sum()))
+
+    st.markdown("### Trend Risk Index")
+    trend = (
+        alt.Chart(view.dropna(subset=["Data", "Risk Index"]))
+        .mark_line(point=True, strokeWidth=3)
+        .encode(
+            x=alt.X("Data:T", title="Data"),
+            y=alt.Y("Risk Index:Q", scale=alt.Scale(domain=[0, 100]), title="Risk Index"),
+            color=alt.Color("Cantiere:N", legend=alt.Legend(title="Cantiere")),
+            tooltip=["Cantiere:N", alt.Tooltip("Data:T"), alt.Tooltip("Risk Index:Q", format=".1f"), "Livello:N"]
+        )
+        .properties(height=390)
+    )
+    st.altair_chart(trend, use_container_width=True)
+
+    st.markdown("### Ultima valutazione per cantiere")
+    st.dataframe(
+        latest[["Cantiere", "Data", "Risk Index", "Livello", "NC", "Ispezioni", "Interferenza", "Compilato da"]].sort_values("Risk Index", ascending=False),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def render_extraction():
+    render_hero(
+        "Estrazione dati",
+        "Applica i filtri prima dell'export e genera un dataset coerente con il perimetro che vuoi analizzare.",
+        eyebrow="REPORTING"
+    )
+    if not database_ready():
+        render_db_notice()
+        return
+    try:
+        df = assessments_dataframe(fetch_assessments())
+    except Exception as exc:
+        st.error(str(exc))
+        return
+    if df.empty:
+        st.info("Nessun dato disponibile per l'estrazione.")
+        return
+
+    min_date = df["Data"].min().date()
+    max_date = df["Data"].max().date()
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        period = st.date_input("Periodo", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+    with f2:
+        sites = st.multiselect("Cantiere", sorted(df["Cantiere"].dropna().astype(str).unique()), placeholder="Tutti i cantieri")
+    with f3:
+        phases = st.multiselect("Fase", sorted(df["Fase"].dropna().astype(str).unique()), placeholder="Tutte le fasi")
+
+    f4, f5 = st.columns([1.3, 1])
+    with f4:
+        levels = st.multiselect("Livello rischio", ["Basso", "Medio basso", "Medio", "Alto", "Critico"], placeholder="Tutti i livelli")
+    with f5:
+        risk_range = st.slider("Risk Index", 0, 100, (0, 100))
+
+    filtered = df.copy()
+    if isinstance(period, (tuple, list)) and len(period) == 2:
+        start, end = period
+        filtered = filtered[(filtered["Data"].dt.date >= start) & (filtered["Data"].dt.date <= end)]
+    if sites:
+        filtered = filtered[filtered["Cantiere"].isin(sites)]
+    if phases:
+        filtered = filtered[filtered["Fase"].isin(phases)]
+    if levels:
+        filtered = filtered[filtered["Livello"].isin(levels)]
+    filtered = filtered[filtered["Risk Index"].between(risk_range[0], risk_range[1])]
+
+    st.metric("Valutazioni incluse nell'estrazione", len(filtered))
+    st.dataframe(filtered.sort_values("Data", ascending=False), use_container_width=True, hide_index=True)
+
+    csv_data = filtered.to_csv(index=False).encode("utf-8-sig")
+    excel_buffer = BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+        filtered.to_excel(writer, sheet_name="Valutazioni", index=False)
+    excel_buffer.seek(0)
+
+    e1, e2 = st.columns(2)
+    with e1:
+        st.download_button("⬇️ Esporta CSV", csv_data, "HSE_Risk_Export.csv", "text/csv", use_container_width=True)
+    with e2:
+        st.download_button("⬇️ Esporta Excel", excel_buffer, "HSE_Risk_Export.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+
+
+def render_methodology():
+    render_hero(
+        "Metodologia",
+        "Trasparenza del modello, criteri di lettura e perimetro di utilizzo del Risk Index.",
+        eyebrow="MODEL GOVERNANCE"
+    )
+    st.markdown("### Classificazione del Risk Index")
+    st.dataframe(pd.DataFrame([
+        {"Intervallo": "0–20", "Livello": "Basso"},
+        {"Intervallo": "21–40", "Livello": "Medio basso"},
+        {"Intervallo": "41–60", "Livello": "Medio"},
+        {"Intervallo": "61–80", "Livello": "Alto"},
+        {"Intervallo": "81–100", "Livello": "Critico"},
+    ]), hide_index=True, use_container_width=True)
+    st.markdown(
+        "Il modello combina non conformità, criticità, attività, interferenze, complessità organizzativa, "
+        "copertura HSE, detection, rapporto ispezioni/NC e correlazioni critiche. Sensibilizzazioni e Stop Work "
+        "agiscono come bonus entro limiti definiti. La fase del cantiere non genera un malus diretto, ma viene usata "
+        "per verificare la coerenza delle sensibilizzazioni."
+    )
+    st.info("Il Risk Index è uno strumento di supporto decisionale e non sostituisce la valutazione dei rischi prevista dalla normativa, il giudizio professionale o le misure di sicurezza applicabili al sito.")
 
 
 # =========================================================
@@ -2617,19 +3072,46 @@ if "advisor_answer" not in st.session_state:
     st.session_state.advisor_answer = ""
 
 
+
+# =========================================================
+# NAVIGAZIONE PRINCIPALE V2
+# =========================================================
+with st.sidebar:
+    st.markdown("## ⚡ HSE Risk Platform")
+    st.caption("Versione 2 · Risk intelligence & reporting")
+    page = st.radio(
+        "Navigazione",
+        ["🏠 Home", "🧮 Risk Assessment", "📊 Dashboard & Storico", "📥 Estrazione dati", "ℹ️ Metodologia"],
+        label_visibility="collapsed",
+        key="main_navigation"
+    )
+    st.divider()
+
+if page == "🏠 Home":
+    render_home()
+    st.stop()
+elif page == "📊 Dashboard & Storico":
+    render_dashboard()
+    st.stop()
+elif page == "📥 Estrazione dati":
+    render_extraction()
+    st.stop()
+elif page == "ℹ️ Metodologia":
+    render_methodology()
+    st.stop()
+
+
 # =========================================================
 # INTERFACCIA
 # =========================================================
-st.title("🦺 HSE Risk Platform AI Locale")
-
-st.caption(
-    "Risk assessment HSE con Executive Summary, Root Cause, "
-    "Toolbox Talk, Action Plan e Advisor locale gratuito."
+render_hero(
+    "Risk Assessment",
+    "Calcola il Risk Index con il motore HSE esistente, analizza i driver e salva la valutazione nello storico della V2.",
+    eyebrow="ASSESSMENT ENGINE"
 )
 
-st.success(
-    "Modalità gratuita attiva: nessuna API key richiesta."
-)
+st.markdown('<span class="hse-badge">Motore locale · nessuna API AI richiesta</span>', unsafe_allow_html=True)
+st.write("")
 
 
 with st.sidebar:
@@ -2642,6 +3124,13 @@ with st.sidebar:
             "Identifica il sito o il progetto. Il nome viene riportato "
             "nei report PowerPoint, Excel e nella checklist Word."
         )
+    )
+
+    created_by = st.text_input(
+        "Compilato da",
+        value="",
+        placeholder="Nome e cognome",
+        help="Il nominativo viene salvato nello storico insieme alla valutazione."
     )
 
     fase = st.selectbox(
@@ -2914,6 +3403,7 @@ with st.sidebar:
 if calcola:
     data = {
         "nome": nome,
+        "created_by": created_by,
         "fase": fase,
         "inspections": inspections,
         "num_nc": num_nc,
@@ -2965,6 +3455,30 @@ reduce_risk = report["reduce_risk"]
 technical_data = report["technical_data"]
 scorecard_df = report["scorecard_df"]
 scorecard_overall = report["scorecard_overall"]
+
+
+
+# =========================================================
+# SALVATAGGIO VALUTAZIONE
+# =========================================================
+st.markdown("### 💾 Archiviazione valutazione")
+col_save_info, col_save_button = st.columns([2.4, 1])
+with col_save_info:
+    if database_ready():
+        st.caption("Database connesso. Il salvataggio archivia input, risultato, driver, action plan e scorecard.")
+    else:
+        st.caption("Il calcolo funziona già. Il salvataggio diventerà persistente appena collegheremo Supabase Free.")
+with col_save_button:
+    if st.button("💾 Salva valutazione", type="primary", use_container_width=True, key="save_assessment"):
+        if not database_ready():
+            st.warning("Database non ancora configurato. Il calcolo non viene perso nella sessione corrente, ma non è ancora archiviato in modo permanente.")
+        else:
+            try:
+                saved = save_assessment(report, data.get("created_by", ""))
+                saved_id = saved[0].get("id") if isinstance(saved, list) and saved else None
+                st.success(f"Valutazione salvata correttamente{f' · ID {saved_id}' if saved_id else ''}.")
+            except Exception as exc:
+                st.error(f"Salvataggio non riuscito: {exc}")
 
 
 # =========================================================
